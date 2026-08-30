@@ -1,11 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function checkSession() {
+      const supabase = createClient();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (active && user) {
+        router.replace("/dashboard");
+      }
+    }
+
+    checkSession();
+
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   async function signInWithGoogle() {
     setLoading(true);
@@ -60,6 +84,7 @@ export default function LoginPage() {
           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-lg font-bold text-blue-600 shadow-sm">
             G
           </span>
+
           {loading ? "Redirecionando..." : "Entrar com Google"}
         </button>
 
