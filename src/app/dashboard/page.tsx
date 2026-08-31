@@ -173,6 +173,7 @@ function getNavigation(role: string): NavItem[] {
       {
         label: "Usuários",
         icon: "users",
+        href: "/admin/usuarios",
       },
       {
         label: "Aulas",
