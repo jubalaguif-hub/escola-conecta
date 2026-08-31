@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -92,6 +91,7 @@ async function createCourse(formData: FormData) {
   }
 
   revalidatePath("/admin/cursos");
+  revalidatePath("/dashboard");
   redirect("/admin/cursos?created=1");
 }
 
@@ -144,6 +144,7 @@ async function updateCourse(formData: FormData) {
   }
 
   revalidatePath("/admin/cursos");
+  revalidatePath("/dashboard");
   redirect("/admin/cursos?updated=1");
 }
 
@@ -171,6 +172,7 @@ async function deactivateCourse(formData: FormData) {
   }
 
   revalidatePath("/admin/cursos");
+  revalidatePath("/dashboard");
   redirect("/admin/cursos?deactivated=1");
 }
 
@@ -184,44 +186,61 @@ export default async function CoursesPage({ searchParams }: PageProps) {
     .order("created_at", { ascending: false });
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-5">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-widest text-blue-600">
-              Escola Conecta
-            </p>
+    <>
+      <section className="mb-7">
+        <p className="ec-eyebrow">CATÁLOGO ACADÊMICO</p>
 
-            <h1 className="mt-1 text-2xl font-bold text-slate-900">
-              Administração de cursos
-            </h1>
+        <h1 className="m-0 text-3xl font-bold tracking-tight text-slate-900">
+          Gerenciar cursos
+        </h1>
+
+        <p className="mt-2 text-sm text-slate-500">
+          Cadastre e organize os cursos que serão utilizados na criação de
+          turmas, aulas e matrículas.
+        </p>
+      </section>
+
+      {params.created === "1" && (
+        <p className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+          Curso cadastrado com sucesso.
+        </p>
+      )}
+
+      {params.updated === "1" && (
+        <p className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+          Curso atualizado com sucesso.
+        </p>
+      )}
+
+      {params.deactivated === "1" && (
+        <p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+          Curso desativado com sucesso.
+        </p>
+      )}
+
+      {params.error && (
+        <p className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800">
+          {params.error}
+        </p>
+      )}
+
+      <div className="grid items-start gap-6 lg:grid-cols-[370px_minmax(0,1fr)]">
+        <aside className="ec-panel">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="ec-quick-icon ec-quick-purple">＋</div>
+
+            <div>
+              <p className="m-0 text-xs font-bold uppercase tracking-widest text-violet-600">
+                Novo cadastro
+              </p>
+
+              <h2 className="mt-1 text-xl font-bold text-slate-900">
+                Criar curso
+              </h2>
+            </div>
           </div>
 
-          <Link
-            href="/dashboard"
-            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-blue-500 hover:text-blue-700"
-          >
-            Voltar ao painel
-          </Link>
-        </div>
-      </header>
-
-      <section className="mx-auto grid max-w-7xl gap-8 px-6 py-10 lg:grid-cols-[390px_1fr]">
-        <aside className="h-fit rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <p className="text-sm font-semibold uppercase tracking-widest text-blue-600">
-            Novo cadastro
-          </p>
-
-          <h2 className="mt-2 text-xl font-bold text-slate-900">
-            Criar curso
-          </h2>
-
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Cadastre primeiro o curso. Depois vincularemos as turmas, o
-            professor, os alunos e as aulas.
-          </p>
-
-          <form action={createCourse} className="mt-6 space-y-5">
+          <form action={createCourse} className="space-y-5">
             <label className="block">
               <span className="text-sm font-semibold text-slate-700">
                 Nome do curso
@@ -231,7 +250,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
                 name="title"
                 required
                 placeholder="Ex.: Matemática – Ensino Médio"
-                className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
               />
             </label>
 
@@ -244,7 +263,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
                 name="description"
                 rows={4}
                 placeholder="Objetivo, público-alvo ou informações importantes."
-                className="mt-2 w-full resize-none rounded-xl border border-slate-300 px-3 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className="mt-2 w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
               />
             </label>
 
@@ -260,7 +279,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
                   min="0"
                   step="1"
                   placeholder="Ex.: 40"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-3 pr-14 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 pr-14 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
                 />
 
                 <span className="absolute right-4 top-3 text-sm text-slate-500">
@@ -277,7 +296,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
               <select
                 name="status"
                 defaultValue="active"
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-900 outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
               >
                 <option value="active">Ativo</option>
                 <option value="draft">Rascunho</option>
@@ -287,88 +306,69 @@ export default async function CoursesPage({ searchParams }: PageProps) {
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
+              className="w-full rounded-xl bg-violet-600 px-5 py-3 font-semibold text-white transition hover:bg-violet-700"
             >
               Cadastrar curso
             </button>
           </form>
         </aside>
 
-        <section>
-          <div className="mb-6">
-            <p className="text-sm font-semibold uppercase tracking-widest text-blue-600">
-              Catálogo acadêmico
-            </p>
+        <section className="min-w-0">
+          <div className="mb-5 flex items-end justify-between gap-4">
+            <div>
+              <h2 className="m-0 text-xl font-bold text-slate-900">
+                Cursos cadastrados
+              </h2>
 
-            <h2 className="mt-2 text-2xl font-bold text-slate-900">
-              Cursos cadastrados
-            </h2>
-
-            <p className="mt-2 text-slate-600">
-              Edite informações ou desative cursos que não estão sendo
-              utilizados.
-            </p>
+              <p className="mt-1 text-sm text-slate-500">
+                {courses?.length || 0}{" "}
+                {(courses?.length || 0) === 1
+                  ? "curso encontrado"
+                  : "cursos encontrados"}
+              </p>
+            </div>
           </div>
 
-          {params.created === "1" && (
-            <p className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
-              Curso cadastrado com sucesso.
-            </p>
-          )}
-
-          {params.updated === "1" && (
-            <p className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
-              Curso atualizado com sucesso.
-            </p>
-          )}
-
-          {params.deactivated === "1" && (
-            <p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
-              Curso desativado com sucesso.
-            </p>
-          )}
-
-          {params.error && (
-            <p className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-800">
-              {params.error}
-            </p>
-          )}
-
           {!courses || courses.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-2xl">
+            <div className="ec-panel text-center">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-violet-100 text-2xl text-violet-600">
                 📚
               </div>
 
               <h3 className="mt-5 text-lg font-bold text-slate-900">
-                Nenhum curso cadastrado ainda
+                Nenhum curso cadastrado
               </h3>
 
-              <p className="mt-2 text-sm text-slate-600">
-                Use o formulário ao lado para cadastrar o primeiro curso.
+              <p className="mt-2 text-sm text-slate-500">
+                Utilize o formulário ao lado para cadastrar o primeiro curso.
               </p>
             </div>
           ) : (
-            <div className="grid gap-5">
+            <div className="grid gap-4">
               {courses.map((course) => (
-                <article
-                  key={course.id}
-                  className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-900">
-                        {course.title}
-                      </h3>
+                <article key={course.id} className="ec-panel">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-100 font-bold text-violet-600">
+                          C
+                        </div>
 
-                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        <div>
+                          <h3 className="m-0 text-lg font-bold text-slate-900">
+                            {course.title}
+                          </h3>
+
+                          <p className="mt-1 text-sm font-medium text-slate-500">
+                            {course.workload_hours !== null
+                              ? `${course.workload_hours} horas`
+                              : "Carga horária não informada"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="mt-4 text-sm leading-6 text-slate-600">
                         {course.description || "Sem descrição cadastrada."}
-                      </p>
-
-                      <p className="mt-3 text-sm font-semibold text-slate-700">
-                        {course.workload_hours !== null
-                          ? `${course.workload_hours} horas`
-                          : "Carga horária não informada"}
                       </p>
                     </div>
 
@@ -381,8 +381,8 @@ export default async function CoursesPage({ searchParams }: PageProps) {
                     </span>
                   </div>
 
-                  <details className="mt-5 rounded-xl border border-slate-200">
-                    <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-blue-700">
+                  <details className="mt-5 overflow-hidden rounded-xl border border-slate-200">
+                    <summary className="cursor-pointer bg-slate-50 px-4 py-3 text-sm font-semibold text-violet-700">
                       Editar curso
                     </summary>
 
@@ -405,7 +405,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
                           name="title"
                           required
                           defaultValue={course.title}
-                          className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                          className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-900 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
                         />
                       </label>
 
@@ -418,7 +418,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
                           name="description"
                           rows={3}
                           defaultValue={course.description || ""}
-                          className="mt-2 w-full resize-none rounded-xl border border-slate-300 px-3 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                          className="mt-2 w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-900 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
                         />
                       </label>
 
@@ -434,7 +434,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
                             min="0"
                             step="1"
                             defaultValue={course.workload_hours ?? ""}
-                            className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                            className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-900 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
                           />
                         </label>
 
@@ -446,7 +446,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
                           <select
                             name="status"
                             defaultValue={course.status}
-                            className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                            className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-slate-900 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
                           >
                             <option value="active">Ativo</option>
                             <option value="draft">Rascunho</option>
@@ -457,7 +457,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
 
                       <button
                         type="submit"
-                        className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-700"
+                        className="rounded-xl bg-violet-600 px-5 py-3 font-semibold text-white transition hover:bg-violet-700"
                       >
                         Salvar alterações
                       </button>
@@ -485,7 +485,7 @@ export default async function CoursesPage({ searchParams }: PageProps) {
             </div>
           )}
         </section>
-      </section>
-    </main>
+      </div>
+    </>
   );
 }
