@@ -586,7 +586,7 @@ export default async function DashboardPage() {
                   </span>
                 </div>
 
-                <div className="ec-quick-card" aria-disabled="true">
+                <Link href="/admin/usuarios" className="ec-quick-card">
                   <span className="ec-quick-icon ec-quick-orange">
                     <Icon name="users" />
                   </span>
@@ -595,7 +595,7 @@ export default async function DashboardPage() {
                     <strong>Gerenciar usuários</strong>
                     <small>Professores e alunos</small>
                   </span>
-                </div>
+                </Link>
               </section>
 
               <div className="ec-dashboard-grid">
