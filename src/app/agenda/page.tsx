@@ -69,7 +69,7 @@ async function createAvailability(formData: FormData) {
   "use server";
 
   const { supabase, user, profile } = await getCurrentProfile();
-  if (profile.role !== "teacher") redirect("/agenda?error=Apenas%20professores%20podem%20cadastrar%20hor%C3%A1rios.");
+  if (profile.role !== "teacher" && profile.role !== "admin") redirect("/agenda?error=Apenas%20professores%20podem%20cadastrar%20hor%C3%A1rios.");
 
   const date = String(formData.get("date") || "");
   const time = String(formData.get("time") || "");
@@ -106,7 +106,7 @@ async function removeAvailability(formData: FormData) {
   "use server";
 
   const { supabase, user, profile } = await getCurrentProfile();
-  if (profile.role !== "teacher") redirect("/agenda");
+  if (profile.role !== "teacher" && profile.role !== "admin") redirect("/agenda");
 
   const slotId = String(formData.get("slot_id") || "");
   const { error } = await supabase
@@ -137,7 +137,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   const weekEnd = new Date(days[6]);
   weekEnd.setDate(weekEnd.getDate() + 1);
 
-  const isTeacher = profile.role === "teacher";
+  const isTeacher = profile.role === "teacher" || profile.role === "admin";
   const isStudent = profile.role === "student";
 
   let slotsQuery = supabase
