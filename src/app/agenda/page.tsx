@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -9,7 +10,6 @@ type PageProps = {
     week?: string;
     created?: string;
     removed?: string;
-    profile?: string;
     error?: string;
   }>;
 };
@@ -126,33 +126,6 @@ async function removeAvailability(formData: FormData) {
   redirect("/agenda?removed=1");
 }
 
-function splitTags(value: FormDataEntryValue | null) {
-  return String(value || "")
-    .split(/,|\n/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-async function updateTeachingProfile(formData: FormData) {
-  "use server";
-
-  const { supabase, profile } = await getCurrentProfile();
-  if (profile.role !== "teacher" && profile.role !== "admin") redirect("/agenda");
-
-  const { error } = await supabase.rpc("update_my_teaching_profile", {
-    p_teaching_area: String(formData.get("teaching_area") || ""),
-    p_teaching_subjects: splitTags(formData.get("teaching_subjects")),
-    p_teaching_grade_levels: splitTags(formData.get("teaching_grade_levels")),
-  });
-
-  if (error) {
-    redirect("/agenda?error=N%C3%A3o%20foi%20poss%C3%ADvel%20salvar%20o%20perfil%20profissional.");
-  }
-
-  revalidatePath("/agenda");
-  redirect("/agenda?profile=1");
-}
-
 export default async function AgendaPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const { supabase, profile } = await getCurrentProfile();
@@ -189,24 +162,32 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         @keyframes agendaRise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes agendaPulse { 0%,100% { transform: scale(1); opacity: .5; } 50% { transform: scale(1.12); opacity: .85; } }
         @keyframes agendaShimmer { from { transform: translateX(-120%); } to { transform: translateX(180%); } }
-        .agenda-page { background: radial-gradient(circle at 87% 6%, rgba(124,58,237,.13), transparent 23rem), radial-gradient(circle at 8% 83%, rgba(16,185,129,.10), transparent 22rem), #f8fafc; }
+        .agenda-page { background: radial-gradient(circle at 87% 6%, rgba(37,99,235,.13), transparent 23rem), radial-gradient(circle at 8% 83%, rgba(16,185,129,.10), transparent 22rem), #f8fafc; }
         .agenda-reveal { animation: agendaRise .55s cubic-bezier(.22,1,.36,1) both; }
         .agenda-reveal-delayed { animation: agendaRise .65s .12s cubic-bezier(.22,1,.36,1) both; }
         .agenda-orb { animation: agendaPulse 5s ease-in-out infinite; }
         .agenda-slot { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
         .agenda-slot:hover { transform: translateY(-4px) scale(1.015); box-shadow: 0 12px 22px rgba(16,185,129,.14); }
+        .agenda-input { transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease, transform .2s ease; }
+        .agenda-input:hover { border-color: #93c5fd; background: #fff; }
+        .agenda-input:focus { transform: translateY(-1px); }
         .agenda-submit { position: relative; overflow: hidden; }
         .agenda-submit::after { content: ""; position: absolute; inset: 0; width: 40%; background: rgba(255,255,255,.25); transform: translateX(-120%) skewX(-20deg); }
         .agenda-submit:hover::after { animation: agendaShimmer .7s ease; }
       `}</style>
       <div className="mx-auto max-w-7xl">
-        <header className="agenda-reveal relative mb-7 flex flex-wrap items-center justify-between gap-5 overflow-hidden rounded-3xl border border-violet-100 bg-white px-6 py-6 shadow-[0_16px_45px_rgba(76,29,149,.08)] sm:px-8">
-          <div className="agenda-orb pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full bg-violet-200/45 blur-2xl" />
+        <header className="agenda-reveal relative mb-7 flex flex-wrap items-center justify-between gap-5 overflow-hidden rounded-3xl border border-blue-100 bg-white px-6 py-6 shadow-[0_16px_45px_rgba(76,29,149,.08)] sm:px-8">
+          <div className="agenda-orb pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full bg-blue-200/45 blur-2xl" />
           <div className="relative">
-            <p className="text-xs font-bold tracking-[0.18em] text-violet-600">
-              ESCOLA CONECTA
-            </p>
-            <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">Agenda de aulas</h1>
+            <Image
+              src="/clina-logo.png"
+              alt="Clina Aulas Particulares"
+              width={270}
+              height={180}
+              priority
+              className="h-16 w-auto object-contain object-left"
+            />
+            <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">Agenda de aulas</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
               {isTeacher
                 ? "Cadastre os horários que deseja disponibilizar aos alunos."
@@ -216,7 +197,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
             </p>
           </div>
           <div className="relative flex items-center gap-2">
-            <Link href="/dashboard" className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-700 transition hover:-translate-y-0.5 hover:bg-violet-100 hover:shadow-md">
+            <Link href="/dashboard" className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 transition hover:-translate-y-0.5 hover:bg-blue-100 hover:shadow-md">
               Voltar ao painel
             </Link>
             <form action={signOut}>
@@ -233,48 +214,35 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         {params.removed === "1" && (
           <div className="agenda-reveal mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800 shadow-sm">Horário removido da agenda.</div>
         )}
-        {params.profile === "1" && (
-          <div className="agenda-reveal mb-5 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm font-semibold text-violet-800 shadow-sm">Perfil profissional atualizado com sucesso.</div>
-        )}
         {params.error && (
           <div className="agenda-reveal mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800 shadow-sm">{params.error}</div>
         )}
 
         <div className={`grid gap-6 ${isTeacher ? "xl:grid-cols-[320px_1fr]" : ""}`}>
           {isTeacher && (
-            <aside className="agenda-reveal-delayed h-fit rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_18px_42px_rgba(15,23,42,.09)]">
-              <div className="mb-5 flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-100 text-lg">＋</span><div><h2 className="text-lg font-extrabold">Disponibilizar horário</h2>
-              <p className="mt-1 text-sm text-slate-500">Cada horário terá duração e valor próprios.</p>
-              </div></div>
-              <form action={createAvailability} className="mt-5 space-y-4">
-                <label className="block text-sm font-semibold text-slate-700">Data
-                  <input name="date" type="date" required className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 outline-none transition focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-100" />
+            <aside className="agenda-reveal-delayed h-fit overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-[0_20px_48px_rgba(30,58,138,.12)]">
+              <div className="bg-gradient-to-br from-blue-950 via-blue-900 to-blue-700 p-5 text-white">
+                <div className="flex items-center justify-between gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15 text-xl ring-1 ring-white/20">＋</span><span className="rounded-full bg-amber-300 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-blue-950">Sua agenda</span></div>
+                <h2 className="mt-5 text-xl font-extrabold tracking-tight">Novo horário</h2>
+                <p className="mt-1 text-sm leading-5 text-blue-100">Defina quando você estará disponível e o valor da aula.</p>
+              </div>
+              <form action={createAvailability} className="space-y-4 p-5">
+                <label className="block text-[11px] font-extrabold uppercase tracking-[.12em] text-slate-500">Data
+                  <input name="date" type="date" required className="agenda-input mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100" />
                 </label>
-                <label className="block text-sm font-semibold text-slate-700">Horário de início
-                  <input name="time" type="time" required className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 outline-none transition focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-100" />
+                <label className="block text-[11px] font-extrabold uppercase tracking-[.12em] text-slate-500">Horário de início
+                  <input name="time" type="time" required className="agenda-input mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100" />
                 </label>
-                <label className="block text-sm font-semibold text-slate-700">Duração em minutos
-                  <input name="duration" type="number" min="15" step="5" placeholder="Ex.: 60" required className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 outline-none transition focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-100" />
-                </label>
-                <label className="block text-sm font-semibold text-slate-700">Valor total da aula
-                  <input name="price" type="number" min="1" step="0.01" placeholder="Ex.: 100,00" required className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 outline-none transition focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-100" />
-                </label>
-                <div className="rounded-2xl border border-violet-100 bg-violet-50 p-3 text-xs leading-5 text-violet-800">💳 O aluno pagará <strong>30% como sinal</strong> de reserva. Os 70% restantes serão mostrados no agendamento.</div>
-                <button type="submit" className="agenda-submit w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3 font-bold text-white shadow-lg shadow-violet-200 transition hover:-translate-y-0.5 hover:shadow-xl">Adicionar à agenda</button>
-              </form>
-              <div className="my-6 border-t border-slate-100" />
-              <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-lg">◉</span><div><h2 className="text-lg font-extrabold">Meu perfil profissional</h2><p className="mt-1 text-sm text-slate-500">Estas informações aparecerão para o aluno.</p></div></div>
-              <form action={updateTeachingProfile} className="mt-5 space-y-4">
-                <label className="block text-sm font-semibold text-slate-700">Área principal
-                  <input name="teaching_area" defaultValue={profile.teaching_area || ""} placeholder="Ex.: Reforço Escolar" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100" />
-                </label>
-                <label className="block text-sm font-semibold text-slate-700">Conteúdos atendidos
-                  <input name="teaching_subjects" defaultValue={(profile.teaching_subjects || []).join(", ")} placeholder="Ex.: Matemática, Português" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100" />
-                </label>
-                <label className="block text-sm font-semibold text-slate-700">Séries atendidas
-                  <input name="teaching_grade_levels" defaultValue={(profile.teaching_grade_levels || []).join(", ")} placeholder="Ex.: 6º ano, 7º ano, 8º ano" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100" />
-                </label>
-                <button type="submit" className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-bold text-emerald-800 transition hover:-translate-y-0.5 hover:bg-emerald-100 hover:shadow-md">Salvar perfil profissional</button>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block text-[11px] font-extrabold uppercase tracking-[.12em] text-slate-500">Duração
+                    <input name="duration" type="number" min="15" step="5" placeholder="60 min" required className="agenda-input mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100" />
+                  </label>
+                  <label className="block text-[11px] font-extrabold uppercase tracking-[.12em] text-slate-500">Valor
+                    <input name="price" type="number" min="1" step="0.01" placeholder="R$ 0,00" required className="agenda-input mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100" />
+                  </label>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-900"><strong className="block text-amber-950">Reserva protegida</strong>O aluno paga 30% de sinal para confirmar o horário.</div>
+                <button type="submit" className="agenda-submit w-full rounded-2xl bg-gradient-to-r from-blue-600 to-blue-800 px-4 py-3.5 font-extrabold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-xl">Disponibilizar horário</button>
               </form>
             </aside>
           )}
@@ -288,7 +256,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
               </div>
               <div className="flex gap-2">
                 <Link href={`/agenda?week=${weekOffset - 1}`} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50">←</Link>
-                <Link href="/agenda" className="rounded-xl border border-violet-100 bg-violet-50 px-3 py-2 text-sm font-bold text-violet-700 transition hover:bg-violet-100">Hoje</Link>
+                <Link href="/agenda" className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700 transition hover:bg-blue-100">Hoje</Link>
                 <Link href={`/agenda?week=${weekOffset + 1}`} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50">→</Link>
               </div>
             </div>
