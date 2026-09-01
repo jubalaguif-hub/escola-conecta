@@ -182,6 +182,7 @@ function getNavigation(role: string): NavItem[] {
       {
         label: "Calendário",
         icon: "calendar",
+        href: "/agenda",
       },
       {
         label: "Presenças",
