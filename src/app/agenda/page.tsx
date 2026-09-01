@@ -2,12 +2,14 @@ import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { signOut } from "@/app/actions/auth";
 
 type PageProps = {
   searchParams: Promise<{
     week?: string;
     created?: string;
     removed?: string;
+    profile?: string;
     error?: string;
   }>;
 };
@@ -56,7 +58,7 @@ async function getCurrentProfile() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, email, role, status")
+    .select("id, full_name, email, role, status, teaching_area, teaching_subjects, teaching_grade_levels")
     .eq("id", user.id)
     .single();
 
@@ -124,6 +126,33 @@ async function removeAvailability(formData: FormData) {
   redirect("/agenda?removed=1");
 }
 
+function splitTags(value: FormDataEntryValue | null) {
+  return String(value || "")
+    .split(/,|\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+async function updateTeachingProfile(formData: FormData) {
+  "use server";
+
+  const { supabase, profile } = await getCurrentProfile();
+  if (profile.role !== "teacher" && profile.role !== "admin") redirect("/agenda");
+
+  const { error } = await supabase.rpc("update_my_teaching_profile", {
+    p_teaching_area: String(formData.get("teaching_area") || ""),
+    p_teaching_subjects: splitTags(formData.get("teaching_subjects")),
+    p_teaching_grade_levels: splitTags(formData.get("teaching_grade_levels")),
+  });
+
+  if (error) {
+    redirect("/agenda?error=N%C3%A3o%20foi%20poss%C3%ADvel%20salvar%20o%20perfil%20profissional.");
+  }
+
+  revalidatePath("/agenda");
+  redirect("/agenda?profile=1");
+}
+
 export default async function AgendaPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const { supabase, profile } = await getCurrentProfile();
@@ -143,7 +172,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   let slotsQuery = supabase
     .from("availability_slots")
     .select(
-      "id, teacher_id, starts_at, ends_at, lesson_price, status, teacher:profiles!availability_slots_teacher_id_fkey(full_name, email)"
+      "id, teacher_id, starts_at, ends_at, lesson_price, status, teacher:profiles!availability_slots_teacher_id_fkey(full_name, email, teaching_area, teaching_subjects, teaching_grade_levels)"
     )
     .gte("starts_at", monday.toISOString())
     .lt("starts_at", weekEnd.toISOString())
@@ -186,9 +215,16 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                   : "Acompanhe os horários disponíveis na plataforma."}
             </p>
           </div>
-          <Link href="/dashboard" className="relative rounded-xl border border-violet-100 bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-700 transition hover:-translate-y-0.5 hover:bg-violet-100 hover:shadow-md">
-            Voltar ao painel
-          </Link>
+          <div className="relative flex items-center gap-2">
+            <Link href="/dashboard" className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-2.5 text-sm font-bold text-violet-700 transition hover:-translate-y-0.5 hover:bg-violet-100 hover:shadow-md">
+              Voltar ao painel
+            </Link>
+            <form action={signOut}>
+              <button type="submit" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:-translate-y-0.5 hover:border-red-200 hover:bg-red-50 hover:text-red-700 hover:shadow-md">
+                Sair
+              </button>
+            </form>
+          </div>
         </header>
 
         {params.created === "1" && (
@@ -196,6 +232,9 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         )}
         {params.removed === "1" && (
           <div className="agenda-reveal mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800 shadow-sm">Horário removido da agenda.</div>
+        )}
+        {params.profile === "1" && (
+          <div className="agenda-reveal mb-5 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm font-semibold text-violet-800 shadow-sm">Perfil profissional atualizado com sucesso.</div>
         )}
         {params.error && (
           <div className="agenda-reveal mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800 shadow-sm">{params.error}</div>
@@ -222,6 +261,20 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                 </label>
                 <div className="rounded-2xl border border-violet-100 bg-violet-50 p-3 text-xs leading-5 text-violet-800">💳 O aluno pagará <strong>30% como sinal</strong> de reserva. Os 70% restantes serão mostrados no agendamento.</div>
                 <button type="submit" className="agenda-submit w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3 font-bold text-white shadow-lg shadow-violet-200 transition hover:-translate-y-0.5 hover:shadow-xl">Adicionar à agenda</button>
+              </form>
+              <div className="my-6 border-t border-slate-100" />
+              <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-lg">◉</span><div><h2 className="text-lg font-extrabold">Meu perfil profissional</h2><p className="mt-1 text-sm text-slate-500">Estas informações aparecerão para o aluno.</p></div></div>
+              <form action={updateTeachingProfile} className="mt-5 space-y-4">
+                <label className="block text-sm font-semibold text-slate-700">Área principal
+                  <input name="teaching_area" defaultValue={profile.teaching_area || ""} placeholder="Ex.: Reforço Escolar" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100" />
+                </label>
+                <label className="block text-sm font-semibold text-slate-700">Conteúdos atendidos
+                  <input name="teaching_subjects" defaultValue={(profile.teaching_subjects || []).join(", ")} placeholder="Ex.: Matemática, Português" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100" />
+                </label>
+                <label className="block text-sm font-semibold text-slate-700">Séries atendidas
+                  <input name="teaching_grade_levels" defaultValue={(profile.teaching_grade_levels || []).join(", ")} placeholder="Ex.: 6º ano, 7º ano, 8º ano" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100" />
+                </label>
+                <button type="submit" className="w-full rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-bold text-emerald-800 transition hover:-translate-y-0.5 hover:bg-emerald-100 hover:shadow-md">Salvar perfil profissional</button>
               </form>
             </aside>
           )}
@@ -256,7 +309,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                         return (
                           <article key={slot.id} className={`agenda-slot rounded-2xl border p-3 text-left ${available ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-100"}`}>
                             <strong className="block text-sm tracking-tight">{timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}</strong>
-                            {!isTeacher && <span className="mt-1 block text-xs text-slate-600">{teacher?.full_name || teacher?.email || "Professor"}</span>}
+                            {!isTeacher && <><span className="mt-1 block text-xs font-bold text-slate-700">{teacher?.full_name || teacher?.email || "Professor"}{teacher?.teaching_area ? ` — ${teacher.teaching_area}` : ""}</span>{teacher?.teaching_subjects?.length ? <span className="mt-1 block text-xs text-slate-500">{teacher.teaching_subjects.join(" · ")}</span> : null}{teacher?.teaching_grade_levels?.length ? <span className="mt-1 block text-xs text-slate-500">{teacher.teaching_grade_levels.join(" · ")}</span> : null}</>}
                             <span className="mt-2 block text-sm font-extrabold text-slate-800">{currency.format(Number(slot.lesson_price))}</span>
                             {available ? (
                               isTeacher ? (
