@@ -49,6 +49,7 @@ const navigation: NavigationItem[] = [
   {
     label: "Calendário",
     icon: "calendar",
+        href: "/agenda",
   },
   {
     label: "Presenças",
