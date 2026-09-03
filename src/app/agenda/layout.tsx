@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -24,12 +25,11 @@ export default async function AgendaLayout({ children }: { children: ReactNode }
   return (
     <div className="ec-shell">
       <aside className="ec-sidebar">
-        <Link href="/dashboard" className="ec-brand">
-          <span className="ec-brand-mark">E</span>
-          <span>escola<span className="ec-brand-accent">conecta</span></span>
+        <Link href="/dashboard" className="ec-brand-logo" aria-label="Clina Aulas Particulares">
+          <Image src="/clina-logo.png" alt="Clina Aulas Particulares" width={300} height={180} priority />
         </Link>
 
-        <p className="ec-nav-label">AMBIENTE ESCOLAR</p>
+        <p className="ec-nav-label">PLATAFORMA EDUCACIONAL</p>
 
         <nav className="ec-navigation" aria-label="Navegação principal">
           <Link href="/dashboard" className="ec-nav-item"><span className="ec-nav-icon">⌂</span><span>Visão geral</span></Link>

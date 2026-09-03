@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -54,24 +55,34 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
-      <section className="w-full max-w-md rounded-3xl bg-white p-8 shadow-xl shadow-slate-200/60">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#DBEAFE] px-6 py-10">
+      <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-[#2563EB]/20 blur-3xl" />
+      <div className="absolute -bottom-28 -right-24 h-96 w-96 rounded-full bg-[#FBBF24]/20 blur-3xl" />
+
+      <section className="relative w-full max-w-md overflow-hidden rounded-[2rem] border border-white/80 bg-white/95 p-8 shadow-2xl shadow-blue-950/15 backdrop-blur sm:p-10">
         <div className="mb-8">
-          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-2xl font-bold text-white">
-            EC
+          <div className="mb-7 flex justify-center">
+            <Image
+              src="/clina-logo.png"
+              alt="Clina Aulas Particulares"
+              width={360}
+              height={240}
+              priority
+              className="h-auto w-64 object-contain sm:w-72"
+            />
           </div>
 
-          <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-blue-600">
-            Escola Conecta
+          <p className="mb-3 text-center text-xs font-bold uppercase tracking-[0.22em] text-[#2563EB]">
+            Área do aluno e professor
           </p>
 
-          <h1 className="text-3xl font-bold text-slate-900">
-            Bem-vindo à sua plataforma acadêmica
+          <h1 className="text-center text-3xl font-bold tracking-tight text-[#1E3A8A]">
+            Bem-vindo(a)!
           </h1>
 
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Entre com sua conta Google para acessar aulas, materiais,
-            gravações, presença e informações acadêmicas.
+          <p className="mt-3 text-center text-sm leading-6 text-[#64748B]">
+            Entre com sua conta Google para acessar sua agenda, aulas e
+            informações da plataforma.
           </p>
         </div>
 
@@ -79,9 +90,9 @@ export default function LoginPage() {
           type="button"
           onClick={signInWithGoogle}
           disabled={loading}
-          className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-5 py-3.5 font-semibold text-slate-800 transition hover:border-blue-500 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#2563EB] px-5 py-4 font-semibold text-white shadow-lg shadow-blue-600/25 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1E3A8A] hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-lg font-bold text-blue-600 shadow-sm">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-base font-bold text-[#2563EB] shadow-sm">
             G
           </span>
 
@@ -89,14 +100,14 @@ export default function LoginPage() {
         </button>
 
         {error && (
-          <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             {error}
           </p>
         )}
 
-        <p className="mt-7 text-center text-xs leading-5 text-slate-500">
+        <p className="mt-7 text-center text-xs leading-5 text-[#64748B]">
           Ao continuar, você concorda com os Termos de Uso e a Política de
-          Privacidade da Escola Conecta.
+          Privacidade da Clina Aulas Particulares.
         </p>
       </section>
     </main>

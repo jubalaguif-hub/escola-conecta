@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -329,7 +330,7 @@ export default async function DashboardPage() {
 
           <p className="mt-3 text-slate-600">
             Seu acesso foi registrado e precisa ser aprovado pelo administrador
-            da Escola Conecta.
+            da Clina Aulas Particulares.
           </p>
         </div>
       </main>
@@ -395,15 +396,21 @@ export default async function DashboardPage() {
   return (
     <div className="ec-shell">
       <aside className="ec-sidebar">
-        <Link href="/dashboard" className="ec-brand">
-          <span className="ec-brand-mark">E</span>
-
-          <span>
-            escola<span className="ec-brand-accent">conecta</span>
-          </span>
+        <Link
+          href="/dashboard"
+          className="ec-brand-logo"
+          aria-label="Clina Aulas Particulares"
+        >
+          <Image
+            src="/clina-logo.png"
+            alt="Clina Aulas Particulares"
+            width={300}
+            height={180}
+            priority
+          />
         </Link>
 
-        <p className="ec-nav-label">AMBIENTE ESCOLAR</p>
+        <p className="ec-nav-label">PLATAFORMA EDUCACIONAL</p>
 
         <nav className="ec-navigation" aria-label="Navegação principal">
           {navigation.map((item) =>
@@ -465,12 +472,18 @@ export default async function DashboardPage() {
 
       <main className="ec-main">
         <header className="ec-topbar">
-          <Link href="/dashboard" className="ec-mobile-brand">
-            <span className="ec-brand-mark">E</span>
-
-            <span>
-              escola<span className="ec-brand-accent">conecta</span>
-            </span>
+          <Link
+            href="/dashboard"
+            className="ec-mobile-brand-logo"
+            aria-label="Clina Aulas Particulares"
+          >
+            <Image
+              src="/clina-logo.png"
+              alt="Clina Aulas Particulares"
+              width={220}
+              height={130}
+              priority
+            />
           </Link>
 
           <label className="ec-search">
@@ -533,7 +546,7 @@ export default async function DashboardPage() {
 
               <p>
                 {isAdmin
-                  ? "Organize a estrutura acadêmica e os acessos da Escola Conecta."
+                  ? "Organize a agenda, os professores e os acessos da Clina."
                   : "Acompanhe sua rotina escolar e tudo o que foi preparado para você."}
               </p>
             </div>

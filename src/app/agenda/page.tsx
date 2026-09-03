@@ -251,7 +251,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-lg">◷</span><div><h2 className="text-xl font-extrabold">Calendário semanal</h2>
-                <p className="mt-1 text-sm text-slate-500">Clique em um horário disponível para conferir os detalhes.</p>
+                <p className="mt-1 text-sm text-slate-500">Visualize e organize seus horários em uma visão semanal.</p>
                 </div></div>
               </div>
               <div className="flex gap-2">
@@ -261,34 +261,36 @@ export default async function AgendaPage({ searchParams }: PageProps) {
               </div>
             </div>
 
-            <div className="grid min-w-[760px] grid-cols-7 overflow-x-auto border-l border-t border-slate-200">
-              {days.map((day) => {
+            <div className="grid min-w-[760px] grid-cols-7 gap-3 overflow-x-auto pb-1">
+              {days.map((day, index) => {
                 const key = dateKey(day);
                 const daySlots = slots.filter((slot) => dateKey(new Date(slot.starts_at)) === key);
+                const isToday = key === dateKey(new Date());
                 return (
-                  <div key={key} className="min-h-[360px] border-b border-r border-slate-200 bg-gradient-to-b from-slate-50/80 to-white">
-                    <div className="border-b border-slate-200 bg-slate-50 px-3 py-3 text-center">
-                      <p className="text-xs font-bold uppercase text-slate-500">{dateLabel.format(day)}</p>
+                  <div key={key} className={`min-h-[360px] rounded-2xl border p-2 ${isToday ? "border-blue-200 bg-blue-50/70 shadow-sm" : "border-slate-100 bg-slate-50/80"}`}>
+                    <div className={`mb-3 rounded-xl px-2 py-2 text-center ${isToday ? "bg-blue-600 text-white" : index > 4 ? "bg-amber-50 text-amber-800" : "bg-white text-slate-500"}`}>
+                      <p className="text-[10px] font-extrabold uppercase tracking-[.08em]">{isToday ? "Hoje · " : ""}{dateLabel.format(day)}</p>
                     </div>
-                    <div className="space-y-2 p-2">
+                    <div className="space-y-2">
                       {daySlots.map((slot) => {
                         const teacher = Array.isArray(slot.teacher) ? slot.teacher[0] : slot.teacher;
                         const available = slot.status === "available";
                         return (
-                          <article key={slot.id} className={`agenda-slot rounded-2xl border p-3 text-left ${available ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-100"}`}>
-                            <strong className="block text-sm tracking-tight">{timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}</strong>
-                            {!isTeacher && <><span className="mt-1 block text-xs font-bold text-slate-700">{teacher?.full_name || teacher?.email || "Professor"}{teacher?.teaching_area ? ` — ${teacher.teaching_area}` : ""}</span>{teacher?.teaching_subjects?.length ? <span className="mt-1 block text-xs text-slate-500">{teacher.teaching_subjects.join(" · ")}</span> : null}{teacher?.teaching_grade_levels?.length ? <span className="mt-1 block text-xs text-slate-500">{teacher.teaching_grade_levels.join(" · ")}</span> : null}</>}
-                            <span className="mt-2 block text-sm font-extrabold text-slate-800">{currency.format(Number(slot.lesson_price))}</span>
+                          <article key={slot.id} className={`agenda-slot relative overflow-hidden rounded-2xl border-l-4 p-3 text-left ${available ? "border border-blue-100 border-l-blue-600 bg-white shadow-sm" : "border border-slate-200 border-l-slate-300 bg-slate-100"}`}>
+                            <span className="block text-xs font-extrabold tracking-tight text-blue-950">{timeLabel.format(new Date(slot.starts_at))} <span className="font-medium text-slate-400">—</span> {timeLabel.format(new Date(slot.ends_at))}</span>
+                            {!isTeacher && <><span className="mt-2 block text-xs font-bold leading-4 text-slate-700">{teacher?.full_name || teacher?.email || "Professor"}{teacher?.teaching_area ? ` · ${teacher.teaching_area}` : ""}</span>{teacher?.teaching_subjects?.length ? <span className="mt-1 block text-[11px] leading-4 text-slate-500">{teacher.teaching_subjects.join(" · ")}</span> : null}</>}
+                            <span className="mt-3 inline-flex rounded-lg bg-blue-50 px-2 py-1 text-xs font-extrabold text-blue-700">{currency.format(Number(slot.lesson_price))}</span>
                             {available ? (
                               isTeacher ? (
-                                <form action={removeAvailability} className="mt-3"><input type="hidden" name="slot_id" value={slot.id} /><button type="submit" className="text-xs font-bold text-red-600">Remover horário</button></form>
+                                <form action={removeAvailability} className="mt-3"><input type="hidden" name="slot_id" value={slot.id} /><button type="submit" className="rounded-lg px-1 text-[11px] font-bold text-red-600 transition hover:bg-red-50">Remover</button></form>
                               ) : (
-                                <span className="mt-3 block text-xs font-bold text-emerald-700">Disponível para reserva</span>
+                                <span className="mt-3 block text-[11px] font-bold text-blue-700">Disponível para reserva</span>
                               )
-                            ) : <span className="mt-3 block text-xs font-bold text-slate-500">Indisponível</span>}
+                            ) : <span className="mt-3 block text-[11px] font-bold text-slate-500">Indisponível</span>}
                           </article>
                         );
                       })}
+                      {daySlots.length === 0 && <p className="px-2 pt-5 text-center text-[11px] font-medium text-slate-400">Sem horários</p>}
                     </div>
                   </div>
                 );
