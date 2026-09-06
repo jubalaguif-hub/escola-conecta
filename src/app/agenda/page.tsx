@@ -10,6 +10,8 @@ type PageProps = {
     created?: string;
     removed?: string;
     error?: string;
+    teacher?: string;
+    subject?: string;
   }>;
 };
 
@@ -157,7 +159,7 @@ async function createAvailability(formData: FormData) {
 
   const { supabase, user, profile } = await getCurrentProfile();
   if (profile.role !== "teacher" && profile.role !== "admin") {
-    redirect("/agenda?error=Apenas%20professores%20podem%20cadastrar%20hor%C3%A1rios.");
+    redirect("/agenda?error=Apenas%20professores%20ou%20administradores%20podem%20cadastrar%20hor%C3%A1rios.");
   }
 
   const date = String(formData.get("date") || "");
@@ -165,14 +167,37 @@ async function createAvailability(formData: FormData) {
   const duration = Number(formData.get("duration") || 0);
   const price = Number(formData.get("price") || 0);
   const subject = String(formData.get("subject") || "").trim();
-  const subjects = Array.isArray(profile.teaching_subjects) ? profile.teaching_subjects.filter(Boolean) : [];
+
+  let targetTeacherId = user.id;
+  let subjects: string[] = Array.isArray(profile.teaching_subjects) ? profile.teaching_subjects.filter(Boolean) : [];
+
+  if (profile.role === "admin") {
+    targetTeacherId = String(formData.get("teacher_id") || "");
+    if (!targetTeacherId) {
+      redirect("/agenda?error=Selecione%20um%20professor.");
+    }
+
+    const { data: targetTeacher } = await supabase
+      .from("profiles")
+      .select("id, role, status, teaching_subjects")
+      .eq("id", targetTeacherId)
+      .eq("role", "teacher")
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (!targetTeacher) {
+      redirect("/agenda?error=Professor%20inv%C3%A1lido%20ou%20inativo.");
+    }
+
+    subjects = Array.isArray(targetTeacher.teaching_subjects) ? targetTeacher.teaching_subjects.filter(Boolean) : [];
+  }
 
   if (!date || !time || duration < 15 || price <= 0 || !subject) {
     redirect("/agenda?error=Preencha%20mat%C3%A9ria%2C%20data%2C%20hor%C3%A1rio%2C%20dura%C3%A7%C3%A3o%20e%20valor%20corretamente.");
   }
 
   if (!subjects.includes(subject)) {
-    redirect("/agenda?error=Selecione%20uma%20mat%C3%A9ria%20cadastrada%20no%20seu%20perfil.");
+    redirect("/agenda?error=Selecione%20uma%20mat%C3%A9ria%20cadastrada%20para%20o%20professor.");
   }
 
   const startsAt = new Date(`${date}T${time}:00-03:00`);
@@ -183,7 +208,7 @@ async function createAvailability(formData: FormData) {
   }
 
   const { error } = await supabase.from("availability_slots").insert({
-    teacher_id: user.id,
+    teacher_id: targetTeacherId,
     starts_at: startsAt.toISOString(),
     ends_at: endsAt.toISOString(),
     lesson_price: price,
@@ -205,12 +230,17 @@ async function removeAvailability(formData: FormData) {
   if (profile.role !== "teacher" && profile.role !== "admin") redirect("/agenda");
 
   const slotId = String(formData.get("slot_id") || "");
-  const { error } = await supabase
+  let deleteQuery = supabase
     .from("availability_slots")
     .delete()
     .eq("id", slotId)
-    .eq("teacher_id", user.id)
     .eq("status", "available");
+
+  if (profile.role === "teacher") {
+    deleteQuery = deleteQuery.eq("teacher_id", user.id);
+  }
+
+  const { error } = await deleteQuery;
 
   if (error) {
     redirect("/agenda?error=N%C3%A3o%20foi%20poss%C3%ADvel%20remover%20este%20hor%C3%A1rio.");
@@ -233,8 +263,41 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   const weekEnd = new Date(days[6]);
   weekEnd.setDate(weekEnd.getDate() + 1);
 
-  const isTeacher = profile.role === "teacher" || profile.role === "admin";
+  const isAdmin = profile.role === "admin";
+  const isTeacher = profile.role === "teacher";
+  const canManageAvailability = isTeacher || isAdmin;
   const isStudent = profile.role === "student";
+
+  const selectedTeacherId = isAdmin ? String(params.teacher || "") : "";
+  const selectedSubject = isAdmin ? String(params.subject || "") : "";
+
+  let teacherProfiles: {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    teaching_subjects: string[] | null;
+  }[] = [];
+
+  if (isAdmin) {
+    const { data: teachersData } = await supabase
+      .from("profiles")
+      .select("id, full_name, email, teaching_subjects")
+      .eq("role", "teacher")
+      .eq("status", "active")
+      .order("full_name");
+
+    teacherProfiles = (teachersData || []) as typeof teacherProfiles;
+  }
+
+  const teachers = teacherProfiles.map((teacher) => ({
+    id: teacher.id,
+    label: teacher.full_name || teacher.email || "Professor",
+    subjects: Array.isArray(teacher.teaching_subjects) ? teacher.teaching_subjects.filter(Boolean) : [],
+  }));
+
+  const allTeacherSubjects = Array.from(new Set(teachers.flatMap((teacher) => teacher.subjects))).sort((a, b) =>
+    a.localeCompare(b, "pt-BR")
+  );
 
   let slotsQuery = supabase
     .from("availability_slots")
@@ -246,11 +309,16 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     .order("starts_at");
 
   if (isTeacher) slotsQuery = slotsQuery.eq("teacher_id", profile.id);
+  if (isAdmin && selectedTeacherId) slotsQuery = slotsQuery.eq("teacher_id", selectedTeacherId);
+  if (isAdmin && selectedSubject) slotsQuery = slotsQuery.eq("subject", selectedSubject);
 
   const { data } = await slotsQuery;
   const slots = (data || []) as Slot[];
   const todayKey = dateKey(new Date());
   const visibleHours = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, index) => DAY_START_HOUR + index);
+  const adminFilterQuery = isAdmin
+    ? `${selectedTeacherId ? `&teacher=${encodeURIComponent(selectedTeacherId)}` : ""}${selectedSubject ? `&subject=${encodeURIComponent(selectedSubject)}` : ""}`
+    : "";
 
   return (
     <div className="min-w-0">
@@ -262,18 +330,22 @@ export default async function AgendaPage({ searchParams }: PageProps) {
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Agenda de aulas</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-            {isTeacher
-              ? "Organize sua disponibilidade e acompanhe sua semana em uma visão simples de horários."
-              : isStudent
+            {isAdmin
+              ? "Acompanhe a agenda dos professores, filtre por matéria e gerencie disponibilidades."
+              : isTeacher
+                ? "Organize sua disponibilidade e acompanhe sua semana em uma visão simples de horários."
+                : isStudent
                 ? "Consulte os horários disponíveis e encontre o melhor momento para sua aula."
                 : "Acompanhe os horários disponíveis na plataforma."}
           </p>
         </div>
-        {isTeacher && (
+        {canManageAvailability && (
           <NewAvailabilityModal
             action={createAvailability}
             defaultDate={dateKey(new Date())}
-            subjects={Array.isArray(profile.teaching_subjects) ? profile.teaching_subjects.filter(Boolean) : []}
+            subjects={isTeacher && Array.isArray(profile.teaching_subjects) ? profile.teaching_subjects.filter(Boolean) : []}
+            teachers={teachers}
+            isAdmin={isAdmin}
           />
         )}
       </div>
@@ -292,6 +364,44 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{params.error}</div>
       )}
 
+      {isAdmin && (
+        <form method="get" className="mb-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+          <input type="hidden" name="week" value={weekOffset} />
+          <label className="block">
+            <span className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">Professor</span>
+            <select
+              name="teacher"
+              defaultValue={selectedTeacherId}
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            >
+              <option value="">Todos os professores</option>
+              {teachers.map((teacher) => (
+                <option key={teacher.id} value={teacher.id}>{teacher.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">Matéria</span>
+            <select
+              name="subject"
+              defaultValue={selectedSubject}
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+            >
+              <option value="">Todas as matérias</option>
+              {allTeacherSubjects.map((subject) => (
+                <option key={subject} value={subject}>{subject}</option>
+              ))}
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <button type="submit" className="flex-1 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800">Filtrar</button>
+            {(selectedTeacherId || selectedSubject) && (
+              <Link href={`/agenda?week=${weekOffset}`} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50">Limpar</Link>
+            )}
+          </div>
+        </form>
+      )}
+
       <section className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)]">
         <div className="flex flex-col gap-4 border-b border-blue-800/70 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-900 px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
@@ -301,20 +411,20 @@ export default async function AgendaPage({ searchParams }: PageProps) {
           </div>
           <div className="flex items-center gap-2">
             <Link
-              href={`/agenda?week=${weekOffset - 1}`}
+              href={`/agenda?week=${weekOffset - 1}${adminFilterQuery}`}
               aria-label="Semana anterior"
               className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20"
             >
               ←
             </Link>
             <Link
-              href="/agenda"
+              href={isAdmin && adminFilterQuery ? `/agenda?week=0${adminFilterQuery}` : "/agenda"}
               className="rounded-xl border border-white/20 bg-white px-4 py-2.5 text-sm font-bold text-blue-950 shadow-sm transition hover:bg-blue-50"
             >
               Hoje
             </Link>
             <Link
-              href={`/agenda?week=${weekOffset + 1}`}
+              href={`/agenda?week=${weekOffset + 1}${adminFilterQuery}`}
               aria-label="Próxima semana"
               className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20"
             >
@@ -398,7 +508,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                           )}
                           <div className="mt-1 flex items-center justify-between gap-1">
                             <span className="truncate text-[10px] font-bold">{currency.format(Number(slot.lesson_price))}</span>
-                            {available && isTeacher && (
+                            {available && canManageAvailability && (
                               <form action={removeAvailability}>
                                 <input type="hidden" name="slot_id" value={slot.id} />
                                 <button
@@ -461,7 +571,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                                 {!isTeacher && <p className="mt-1 truncate text-xs font-semibold text-slate-600">{teacher?.full_name || teacher?.email || "Professor"}</p>}
                                 <p className="mt-1 text-xs font-bold text-blue-700">{currency.format(Number(slot.lesson_price))}</p>
                               </div>
-                              {available && isTeacher && (
+                              {available && canManageAvailability && (
                                 <form action={removeAvailability}>
                                   <input type="hidden" name="slot_id" value={slot.id} />
                                   <button type="submit" className="rounded-lg px-2 py-1 text-xs font-bold text-red-600 transition hover:bg-red-50">Remover</button>

@@ -1,15 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+type TeacherOption = {
+  id: string;
+  label: string;
+  subjects: string[];
+};
 
 type Props = {
   action: (formData: FormData) => void | Promise<void>;
   defaultDate?: string;
-  subjects: string[];
+  subjects?: string[];
+  teachers?: TeacherOption[];
+  isAdmin?: boolean;
 };
 
-export default function NewAvailabilityModal({ action, defaultDate, subjects }: Props) {
+export default function NewAvailabilityModal({
+  action,
+  defaultDate,
+  subjects = [],
+  teachers = [],
+  isAdmin = false,
+}: Props) {
   const [open, setOpen] = useState(false);
+  const [teacherId, setTeacherId] = useState("");
+
+  const selectedTeacher = useMemo(
+    () => teachers.find((teacher) => teacher.id === teacherId),
+    [teacherId, teachers]
+  );
+
+  const availableSubjects = isAdmin ? selectedTeacher?.subjects ?? [] : subjects;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -26,6 +48,11 @@ export default function NewAvailabilityModal({ action, defaultDate, subjects }: 
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  function closeModal() {
+    setOpen(false);
+    setTeacherId("");
+  }
 
   return (
     <>
@@ -45,7 +72,7 @@ export default function NewAvailabilityModal({ action, defaultDate, subjects }: 
           aria-modal="true"
           aria-labelledby="new-availability-title"
           onMouseDown={(event) => {
-            if (event.currentTarget === event.target) setOpen(false);
+            if (event.currentTarget === event.target) closeModal();
           }}
         >
           <div className="w-full rounded-t-3xl bg-white shadow-2xl sm:max-w-lg sm:rounded-3xl">
@@ -55,11 +82,15 @@ export default function NewAvailabilityModal({ action, defaultDate, subjects }: 
                 <h2 id="new-availability-title" className="mt-1 text-xl font-extrabold text-slate-950">
                   Adicionar novo horário
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">Informe quando a aula poderá ser reservada.</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {isAdmin
+                    ? "Escolha o professor e disponibilize um horário em nome dele."
+                    : "Informe quando a aula poderá ser reservada."}
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={closeModal}
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
                 aria-label="Fechar"
               >
@@ -68,30 +99,56 @@ export default function NewAvailabilityModal({ action, defaultDate, subjects }: 
             </div>
 
             <form action={action} className="space-y-5 px-6 py-6">
+              {isAdmin && (
+                <label className="block">
+                  <span className="text-sm font-semibold text-slate-700">Professor</span>
+                  <select
+                    name="teacher_id"
+                    value={teacherId}
+                    onChange={(event) => setTeacherId(event.target.value)}
+                    required
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  >
+                    <option value="">Selecione um professor</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher.id} value={teacher.id}>
+                        {teacher.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs text-slate-500">A matéria será carregada a partir do cadastro do professor escolhido.</p>
+                </label>
+              )}
+
               <label className="block">
                 <span className="text-sm font-semibold text-slate-700">Matéria da aula</span>
-                {subjects.length > 0 ? (
+                {availableSubjects.length > 0 ? (
                   <>
                     <select
+                      key={teacherId || "own-subjects"}
                       name="subject"
-                      defaultValue={subjects.length === 1 ? subjects[0] : ""}
+                      defaultValue={availableSubjects.length === 1 ? availableSubjects[0] : ""}
                       required
                       className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                     >
-                      {subjects.length > 1 && <option value="">Selecione uma matéria</option>}
-                      {subjects.map((subject) => (
+                      {availableSubjects.length > 1 && <option value="">Selecione uma matéria</option>}
+                      {availableSubjects.map((subject) => (
                         <option key={subject} value={subject}>
                           {subject}
                         </option>
                       ))}
                     </select>
                     <p className="mt-2 text-xs text-slate-500">
-                      As opções vêm das matérias cadastradas no seu perfil de professor.
+                      {isAdmin
+                        ? "Somente as matérias cadastradas para este professor podem ser usadas."
+                        : "As opções vêm das matérias cadastradas no seu perfil de professor."}
                     </p>
                   </>
                 ) : (
                   <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-                    Nenhuma matéria foi cadastrada no seu perfil. Cadastre suas matérias antes de disponibilizar um horário.
+                    {isAdmin && !teacherId
+                      ? "Selecione um professor para carregar as matérias."
+                      : "Este professor ainda não possui matérias cadastradas. Atualize o cadastro antes de disponibilizar um horário."}
                   </div>
                 )}
               </label>
@@ -153,20 +210,20 @@ export default function NewAvailabilityModal({ action, defaultDate, subjects }: 
               </div>
 
               <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm leading-5 text-slate-600">
-                O horário ficará disponível para reserva. O aluno confirma a aula mediante o sinal configurado na plataforma.
+                O horário ficará disponível para reserva. A matéria e o professor ficam vinculados a este horário.
               </div>
 
               <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={closeModal}
                   className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={subjects.length === 0}
+                  disabled={availableSubjects.length === 0 || (isAdmin && !teacherId)}
                   className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   Disponibilizar horário
