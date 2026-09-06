@@ -19,6 +19,7 @@ type Slot = {
   starts_at: string;
   ends_at: string;
   lesson_price: number | string;
+  subject: string | null;
   status: string;
   teacher:
     | {
@@ -163,9 +164,15 @@ async function createAvailability(formData: FormData) {
   const time = String(formData.get("time") || "");
   const duration = Number(formData.get("duration") || 0);
   const price = Number(formData.get("price") || 0);
+  const subject = String(formData.get("subject") || "").trim();
+  const subjects = Array.isArray(profile.teaching_subjects) ? profile.teaching_subjects.filter(Boolean) : [];
 
-  if (!date || !time || duration < 15 || price <= 0) {
-    redirect("/agenda?error=Preencha%20data%2C%20hor%C3%A1rio%2C%20dura%C3%A7%C3%A3o%20e%20valor%20corretamente.");
+  if (!date || !time || duration < 15 || price <= 0 || !subject) {
+    redirect("/agenda?error=Preencha%20mat%C3%A9ria%2C%20data%2C%20hor%C3%A1rio%2C%20dura%C3%A7%C3%A3o%20e%20valor%20corretamente.");
+  }
+
+  if (!subjects.includes(subject)) {
+    redirect("/agenda?error=Selecione%20uma%20mat%C3%A9ria%20cadastrada%20no%20seu%20perfil.");
   }
 
   const startsAt = new Date(`${date}T${time}:00-03:00`);
@@ -180,6 +187,7 @@ async function createAvailability(formData: FormData) {
     starts_at: startsAt.toISOString(),
     ends_at: endsAt.toISOString(),
     lesson_price: price,
+    subject,
   });
 
   if (error) {
@@ -231,7 +239,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   let slotsQuery = supabase
     .from("availability_slots")
     .select(
-      "id, teacher_id, starts_at, ends_at, lesson_price, status, teacher:profiles!availability_slots_teacher_id_fkey(full_name, email, teaching_area, teaching_subjects, teaching_grade_levels)"
+      "id, teacher_id, starts_at, ends_at, lesson_price, subject, status, teacher:profiles!availability_slots_teacher_id_fkey(full_name, email, teaching_area, teaching_subjects, teaching_grade_levels)"
     )
     .gte("starts_at", monday.toISOString())
     .lt("starts_at", weekEnd.toISOString())
@@ -261,7 +269,13 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                 : "Acompanhe os horários disponíveis na plataforma."}
           </p>
         </div>
-        {isTeacher && <NewAvailabilityModal action={createAvailability} defaultDate={dateKey(new Date())} />}
+        {isTeacher && (
+          <NewAvailabilityModal
+            action={createAvailability}
+            defaultDate={dateKey(new Date())}
+            subjects={Array.isArray(profile.teaching_subjects) ? profile.teaching_subjects.filter(Boolean) : []}
+          />
+        )}
       </div>
 
       {params.created === "1" && (
@@ -376,6 +390,9 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                           <p className="truncate text-[11px] font-extrabold">
                             {timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}
                           </p>
+                          {slot.subject && (
+                            <p className="mt-0.5 truncate text-[10px] font-extrabold text-blue-700">{slot.subject}</p>
+                          )}
                           {!isTeacher && (
                             <p className="mt-0.5 truncate text-[10px] font-semibold opacity-80">{teacher?.full_name || teacher?.email || "Professor"}</p>
                           )}
@@ -440,6 +457,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                                 <p className="text-sm font-extrabold text-slate-900">
                                   {timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}
                                 </p>
+                                {slot.subject && <p className="mt-1 text-xs font-extrabold text-blue-700">{slot.subject}</p>}
                                 {!isTeacher && <p className="mt-1 truncate text-xs font-semibold text-slate-600">{teacher?.full_name || teacher?.email || "Professor"}</p>}
                                 <p className="mt-1 text-xs font-bold text-blue-700">{currency.format(Number(slot.lesson_price))}</p>
                               </div>

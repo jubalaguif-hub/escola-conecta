@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 type Props = {
   action: (formData: FormData) => void | Promise<void>;
   defaultDate?: string;
+  subjects: string[];
 };
 
-export default function NewAvailabilityModal({ action, defaultDate }: Props) {
+export default function NewAvailabilityModal({ action, defaultDate, subjects }: Props) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -67,6 +68,34 @@ export default function NewAvailabilityModal({ action, defaultDate }: Props) {
             </div>
 
             <form action={action} className="space-y-5 px-6 py-6">
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">Matéria da aula</span>
+                {subjects.length > 0 ? (
+                  <>
+                    <select
+                      name="subject"
+                      defaultValue={subjects.length === 1 ? subjects[0] : ""}
+                      required
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    >
+                      {subjects.length > 1 && <option value="">Selecione uma matéria</option>}
+                      {subjects.map((subject) => (
+                        <option key={subject} value={subject}>
+                          {subject}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-2 text-xs text-slate-500">
+                      As opções vêm das matérias cadastradas no seu perfil de professor.
+                    </p>
+                  </>
+                ) : (
+                  <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                    Nenhuma matéria foi cadastrada no seu perfil. Cadastre suas matérias antes de disponibilizar um horário.
+                  </div>
+                )}
+              </label>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block">
                   <span className="text-sm font-semibold text-slate-700">Data</span>
@@ -137,7 +166,8 @@ export default function NewAvailabilityModal({ action, defaultDate }: Props) {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100"
+                  disabled={subjects.length === 0}
+                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   Disponibilizar horário
                 </button>

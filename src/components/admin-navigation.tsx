@@ -43,6 +43,11 @@ const navigation: NavigationItem[] = [
     href: "/admin/usuarios",
   },
   {
+    label: "Professores",
+    icon: "users",
+    href: "/admin/professores",
+  },
+  {
     label: "Aulas",
     icon: "video",
   },
