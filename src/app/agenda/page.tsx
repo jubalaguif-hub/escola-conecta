@@ -1,9 +1,8 @@
 import Link from "next/link";
-import Image from "next/image";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { signOut } from "@/app/actions/auth";
+import NewAvailabilityModal from "./components/NewAvailabilityModal";
 
 type PageProps = {
   searchParams: Promise<{
@@ -14,27 +13,73 @@ type PageProps = {
   }>;
 };
 
+type Slot = {
+  id: string;
+  teacher_id: string;
+  starts_at: string;
+  ends_at: string;
+  lesson_price: number | string;
+  status: string;
+  teacher:
+    | {
+        full_name?: string | null;
+        email?: string | null;
+        teaching_area?: string | null;
+        teaching_subjects?: string[] | null;
+        teaching_grade_levels?: string[] | null;
+      }
+    | {
+        full_name?: string | null;
+        email?: string | null;
+        teaching_area?: string | null;
+        teaching_subjects?: string[] | null;
+        teaching_grade_levels?: string[] | null;
+      }[]
+    | null;
+};
+
+const TIME_ZONE = "America/Sao_Paulo";
+const DAY_START_HOUR = 7;
+const DAY_END_HOUR = 24;
+const HOUR_HEIGHT = 64;
+
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
 
-const dateLabel = new Intl.DateTimeFormat("pt-BR", {
+const shortDayLabel = new Intl.DateTimeFormat("pt-BR", {
   weekday: "short",
+  timeZone: TIME_ZONE,
+});
+
+const dayNumberLabel = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
-  month: "2-digit",
-  timeZone: "America/Sao_Paulo",
+  timeZone: TIME_ZONE,
+});
+
+const monthYearLabel = new Intl.DateTimeFormat("pt-BR", {
+  month: "long",
+  year: "numeric",
+  timeZone: TIME_ZONE,
 });
 
 const timeLabel = new Intl.DateTimeFormat("pt-BR", {
   hour: "2-digit",
   minute: "2-digit",
-  timeZone: "America/Sao_Paulo",
+  timeZone: TIME_ZONE,
+});
+
+const fullDateLabel = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "long",
+  day: "2-digit",
+  month: "long",
+  timeZone: TIME_ZONE,
 });
 
 function dateKey(date: Date) {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
+    timeZone: TIME_ZONE,
   }).format(date);
 }
 
@@ -46,6 +91,44 @@ function startOfWeek(offset: number) {
   monday.setDate(today.getDate() + mondayOffset + offset * 7);
   monday.setHours(12, 0, 0, 0);
   return monday;
+}
+
+function minutesInSaoPaulo(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: TIME_ZONE,
+  }).formatToParts(date);
+
+  const hour = Number(parts.find((part) => part.type === "hour")?.value || 0);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value || 0);
+  return hour * 60 + minute;
+}
+
+function slotPosition(slot: Slot) {
+  const start = minutesInSaoPaulo(new Date(slot.starts_at));
+  const end = minutesInSaoPaulo(new Date(slot.ends_at));
+  const dayStart = DAY_START_HOUR * 60;
+  const topMinutes = Math.max(0, start - dayStart);
+  const duration = Math.max(30, end >= start ? end - start : 30);
+
+  return {
+    top: `${(topMinutes / 60) * HOUR_HEIGHT}px`,
+    height: `${Math.max(44, (duration / 60) * HOUR_HEIGHT)}px`,
+  };
+}
+
+function weekTitle(days: Date[]) {
+  const first = days[0];
+  const last = days[6];
+  const firstMonth = new Intl.DateTimeFormat("pt-BR", { month: "short", timeZone: TIME_ZONE }).format(first).replace(".", "");
+  const lastMonth = new Intl.DateTimeFormat("pt-BR", { month: "short", timeZone: TIME_ZONE }).format(last).replace(".", "");
+  const firstDay = dayNumberLabel.format(first);
+  const lastDay = dayNumberLabel.format(last);
+
+  if (firstMonth === lastMonth) return `${firstDay} – ${lastDay} de ${monthYearLabel.format(last)}`;
+  return `${firstDay} de ${firstMonth} – ${lastDay} de ${lastMonth} de ${last.getFullYear()}`;
 }
 
 async function getCurrentProfile() {
@@ -71,7 +154,9 @@ async function createAvailability(formData: FormData) {
   "use server";
 
   const { supabase, user, profile } = await getCurrentProfile();
-  if (profile.role !== "teacher" && profile.role !== "admin") redirect("/agenda?error=Apenas%20professores%20podem%20cadastrar%20hor%C3%A1rios.");
+  if (profile.role !== "teacher" && profile.role !== "admin") {
+    redirect("/agenda?error=Apenas%20professores%20podem%20cadastrar%20hor%C3%A1rios.");
+  }
 
   const date = String(formData.get("date") || "");
   const time = String(formData.get("time") || "");
@@ -154,151 +239,226 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   if (isTeacher) slotsQuery = slotsQuery.eq("teacher_id", profile.id);
 
   const { data } = await slotsQuery;
-  const slots = data || [];
+  const slots = (data || []) as Slot[];
+  const todayKey = dateKey(new Date());
+  const visibleHours = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, index) => DAY_START_HOUR + index);
 
   return (
-    <main className="agenda-page min-h-screen overflow-hidden bg-slate-50 px-4 py-6 text-slate-900 sm:px-8 sm:py-8">
-      <style>{`
-        @keyframes agendaRise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes agendaPulse { 0%,100% { transform: scale(1); opacity: .5; } 50% { transform: scale(1.12); opacity: .85; } }
-        @keyframes agendaShimmer { from { transform: translateX(-120%); } to { transform: translateX(180%); } }
-        .agenda-page { background: radial-gradient(circle at 87% 6%, rgba(37,99,235,.13), transparent 23rem), radial-gradient(circle at 8% 83%, rgba(16,185,129,.10), transparent 22rem), #f8fafc; }
-        .agenda-reveal { animation: agendaRise .55s cubic-bezier(.22,1,.36,1) both; }
-        .agenda-reveal-delayed { animation: agendaRise .65s .12s cubic-bezier(.22,1,.36,1) both; }
-        .agenda-orb { animation: agendaPulse 5s ease-in-out infinite; }
-        .agenda-slot { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
-        .agenda-slot:hover { transform: translateY(-4px) scale(1.015); box-shadow: 0 12px 22px rgba(16,185,129,.14); }
-        .agenda-input { transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease, transform .2s ease; }
-        .agenda-input:hover { border-color: #93c5fd; background: #fff; }
-        .agenda-input:focus { transform: translateY(-1px); }
-        .agenda-submit { position: relative; overflow: hidden; }
-        .agenda-submit::after { content: ""; position: absolute; inset: 0; width: 40%; background: rgba(255,255,255,.25); transform: translateX(-120%) skewX(-20deg); }
-        .agenda-submit:hover::after { animation: agendaShimmer .7s ease; }
-      `}</style>
-      <div className="mx-auto max-w-7xl">
-        <header className="agenda-reveal relative mb-7 flex flex-wrap items-center justify-between gap-5 overflow-hidden rounded-3xl border border-blue-100 bg-white px-6 py-6 shadow-[0_16px_45px_rgba(76,29,149,.08)] sm:px-8">
-          <div className="agenda-orb pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full bg-blue-200/45 blur-2xl" />
-          <div className="relative">
-            <Image
-              src="/clina-logo.png"
-              alt="Clina Aulas Particulares"
-              width={270}
-              height={180}
-              priority
-              className="h-16 w-auto object-contain object-left"
-            />
-            <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-950 sm:text-4xl">Agenda de aulas</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              {isTeacher
-                ? "Cadastre os horários que deseja disponibilizar aos alunos."
-                : isStudent
-                  ? "Escolha um horário disponível para sua aula particular."
-                  : "Acompanhe os horários disponíveis na plataforma."}
-            </p>
+    <div className="min-w-0">
+      <div className="mb-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-500">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-600">◷</span>
+            Calendário
           </div>
-          <div className="relative flex items-center gap-2">
-            <Link href="/dashboard" className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 transition hover:-translate-y-0.5 hover:bg-blue-100 hover:shadow-md">
-              Voltar ao painel
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Agenda de aulas</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+            {isTeacher
+              ? "Organize sua disponibilidade e acompanhe sua semana em uma visão simples de horários."
+              : isStudent
+                ? "Consulte os horários disponíveis e encontre o melhor momento para sua aula."
+                : "Acompanhe os horários disponíveis na plataforma."}
+          </p>
+        </div>
+        {isTeacher && <NewAvailabilityModal action={createAvailability} defaultDate={dateKey(new Date())} />}
+      </div>
+
+      {params.created === "1" && (
+        <div className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+          <span>✓</span> Horário disponibilizado com sucesso.
+        </div>
+      )}
+      {params.removed === "1" && (
+        <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+          <span>✓</span> Horário removido da agenda.
+        </div>
+      )}
+      {params.error && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{params.error}</div>
+      )}
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div>
+            <h2 className="text-base font-extrabold capitalize text-slate-900">{weekTitle(days)}</h2>
+            <p className="mt-0.5 text-xs text-slate-500">{slots.length} {slots.length === 1 ? "horário nesta semana" : "horários nesta semana"}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/agenda?week=${weekOffset - 1}`}
+              aria-label="Semana anterior"
+              className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+            >
+              ←
             </Link>
-            <form action={signOut}>
-              <button type="submit" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:-translate-y-0.5 hover:border-red-200 hover:bg-red-50 hover:text-red-700 hover:shadow-md">
-                Sair
-              </button>
-            </form>
+            <Link
+              href="/agenda"
+              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+            >
+              Hoje
+            </Link>
+            <Link
+              href={`/agenda?week=${weekOffset + 1}`}
+              aria-label="Próxima semana"
+              className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+            >
+              →
+            </Link>
           </div>
-        </header>
+        </div>
 
-        {params.created === "1" && (
-          <div className="agenda-reveal mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800 shadow-sm">✓ Horário disponibilizado com sucesso.</div>
-        )}
-        {params.removed === "1" && (
-          <div className="agenda-reveal mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800 shadow-sm">Horário removido da agenda.</div>
-        )}
-        {params.error && (
-          <div className="agenda-reveal mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800 shadow-sm">{params.error}</div>
-        )}
-
-        <div className={`grid gap-6 ${isTeacher ? "xl:grid-cols-[320px_1fr]" : ""}`}>
-          {isTeacher && (
-            <aside className="agenda-reveal-delayed h-fit overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-[0_20px_48px_rgba(30,58,138,.12)]">
-              <div className="bg-gradient-to-br from-blue-950 via-blue-900 to-blue-700 p-5 text-white">
-                <div className="flex items-center justify-between gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15 text-xl ring-1 ring-white/20">＋</span><span className="rounded-full bg-amber-300 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[.12em] text-blue-950">Sua agenda</span></div>
-                <h2 className="mt-5 text-xl font-extrabold tracking-tight">Novo horário</h2>
-                <p className="mt-1 text-sm leading-5 text-blue-100">Defina quando você estará disponível e o valor da aula.</p>
-              </div>
-              <form action={createAvailability} className="space-y-4 p-5">
-                <label className="block text-[11px] font-extrabold uppercase tracking-[.12em] text-slate-500">Data
-                  <input name="date" type="date" required className="agenda-input mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100" />
-                </label>
-                <label className="block text-[11px] font-extrabold uppercase tracking-[.12em] text-slate-500">Horário de início
-                  <input name="time" type="time" required className="agenda-input mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100" />
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="block text-[11px] font-extrabold uppercase tracking-[.12em] text-slate-500">Duração
-                    <input name="duration" type="number" min="15" step="5" placeholder="60 min" required className="agenda-input mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100" />
-                  </label>
-                  <label className="block text-[11px] font-extrabold uppercase tracking-[.12em] text-slate-500">Valor
-                    <input name="price" type="number" min="1" step="0.01" placeholder="R$ 0,00" required className="agenda-input mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100" />
-                  </label>
-                </div>
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-900"><strong className="block text-amber-950">Reserva protegida</strong>O aluno paga 30% de sinal para confirmar o horário.</div>
-                <button type="submit" className="agenda-submit w-full rounded-2xl bg-gradient-to-r from-blue-600 to-blue-800 px-4 py-3.5 font-extrabold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-xl">Disponibilizar horário</button>
-              </form>
-            </aside>
-          )}
-
-          <section className="agenda-reveal-delayed min-w-0 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-[0_18px_42px_rgba(15,23,42,.09)] sm:p-6">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-100 text-lg">◷</span><div><h2 className="text-xl font-extrabold">Calendário semanal</h2>
-                <p className="mt-1 text-sm text-slate-500">Visualize e organize seus horários em uma visão semanal.</p>
-                </div></div>
-              </div>
-              <div className="flex gap-2">
-                <Link href={`/agenda?week=${weekOffset - 1}`} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50">←</Link>
-                <Link href="/agenda" className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700 transition hover:bg-blue-100">Hoje</Link>
-                <Link href={`/agenda?week=${weekOffset + 1}`} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50">→</Link>
-              </div>
-            </div>
-
-            <div className="grid min-w-[760px] grid-cols-7 gap-3 overflow-x-auto pb-1">
+        {/* Desktop: calendário temporal */}
+        <div className="hidden overflow-x-auto md:block">
+          <div className="min-w-[980px]">
+            <div className="grid grid-cols-[72px_repeat(7,minmax(120px,1fr))] border-b border-slate-200 bg-white">
+              <div className="border-r border-slate-100" />
               {days.map((day, index) => {
                 const key = dateKey(day);
-                const daySlots = slots.filter((slot) => dateKey(new Date(slot.starts_at)) === key);
-                const isToday = key === dateKey(new Date());
+                const isToday = key === todayKey;
+                const weekend = index > 4;
                 return (
-                  <div key={key} className={`min-h-[360px] rounded-2xl border p-2 ${isToday ? "border-blue-200 bg-blue-50/70 shadow-sm" : "border-slate-100 bg-slate-50/80"}`}>
-                    <div className={`mb-3 rounded-xl px-2 py-2 text-center ${isToday ? "bg-blue-600 text-white" : index > 4 ? "bg-amber-50 text-amber-800" : "bg-white text-slate-500"}`}>
-                      <p className="text-[10px] font-extrabold uppercase tracking-[.08em]">{isToday ? "Hoje · " : ""}{dateLabel.format(day)}</p>
-                    </div>
-                    <div className="space-y-2">
-                      {daySlots.map((slot) => {
-                        const teacher = Array.isArray(slot.teacher) ? slot.teacher[0] : slot.teacher;
-                        const available = slot.status === "available";
-                        return (
-                          <article key={slot.id} className={`agenda-slot relative overflow-hidden rounded-2xl border-l-4 p-3 text-left ${available ? "border border-blue-100 border-l-blue-600 bg-white shadow-sm" : "border border-slate-200 border-l-slate-300 bg-slate-100"}`}>
-                            <span className="block text-xs font-extrabold tracking-tight text-blue-950">{timeLabel.format(new Date(slot.starts_at))} <span className="font-medium text-slate-400">—</span> {timeLabel.format(new Date(slot.ends_at))}</span>
-                            {!isTeacher && <><span className="mt-2 block text-xs font-bold leading-4 text-slate-700">{teacher?.full_name || teacher?.email || "Professor"}{teacher?.teaching_area ? ` · ${teacher.teaching_area}` : ""}</span>{teacher?.teaching_subjects?.length ? <span className="mt-1 block text-[11px] leading-4 text-slate-500">{teacher.teaching_subjects.join(" · ")}</span> : null}</>}
-                            <span className="mt-3 inline-flex rounded-lg bg-blue-50 px-2 py-1 text-xs font-extrabold text-blue-700">{currency.format(Number(slot.lesson_price))}</span>
-                            {available ? (
-                              isTeacher ? (
-                                <form action={removeAvailability} className="mt-3"><input type="hidden" name="slot_id" value={slot.id} /><button type="submit" className="rounded-lg px-1 text-[11px] font-bold text-red-600 transition hover:bg-red-50">Remover</button></form>
-                              ) : (
-                                <span className="mt-3 block text-[11px] font-bold text-blue-700">Disponível para reserva</span>
-                              )
-                            ) : <span className="mt-3 block text-[11px] font-bold text-slate-500">Indisponível</span>}
-                          </article>
-                        );
-                      })}
-                      {daySlots.length === 0 && <p className="px-2 pt-5 text-center text-[11px] font-medium text-slate-400">Sem horários</p>}
+                  <div key={key} className={`border-r border-slate-100 px-2 py-3 text-center last:border-r-0 ${weekend ? "bg-slate-50/60" : ""}`}>
+                    <p className={`text-[11px] font-bold uppercase tracking-[0.08em] ${isToday ? "text-blue-600" : "text-slate-400"}`}>
+                      {shortDayLabel.format(day).replace(".", "")}
+                    </p>
+                    <div className={`mx-auto mt-1 grid h-9 w-9 place-items-center rounded-full text-sm font-extrabold ${isToday ? "bg-blue-600 text-white" : "text-slate-800"}`}>
+                      {dayNumberLabel.format(day)}
                     </div>
                   </div>
                 );
               })}
             </div>
-          </section>
+
+            <div className="grid grid-cols-[72px_repeat(7,minmax(120px,1fr))]">
+              <div className="relative border-r border-slate-100" style={{ height: `${visibleHours.length * HOUR_HEIGHT}px` }}>
+                {visibleHours.map((hour) => (
+                  <div key={hour} className="absolute right-3 text-[11px] font-medium text-slate-400" style={{ top: `${(hour - DAY_START_HOUR) * HOUR_HEIGHT - 7}px` }}>
+                    {String(hour).padStart(2, "0")}:00
+                  </div>
+                ))}
+              </div>
+
+              {days.map((day, index) => {
+                const key = dateKey(day);
+                const daySlots = slots.filter((slot) => dateKey(new Date(slot.starts_at)) === key);
+                const isToday = key === todayKey;
+                const weekend = index > 4;
+
+                return (
+                  <div
+                    key={key}
+                    className={`relative border-r border-slate-100 last:border-r-0 ${isToday ? "bg-blue-50/30" : weekend ? "bg-slate-50/45" : "bg-white"}`}
+                    style={{ height: `${visibleHours.length * HOUR_HEIGHT}px` }}
+                  >
+                    {visibleHours.map((hour) => (
+                      <div
+                        key={hour}
+                        className="absolute inset-x-0 border-t border-slate-100"
+                        style={{ top: `${(hour - DAY_START_HOUR) * HOUR_HEIGHT}px` }}
+                      />
+                    ))}
+
+                    {daySlots.map((slot) => {
+                      const teacher = Array.isArray(slot.teacher) ? slot.teacher[0] : slot.teacher;
+                      const available = slot.status === "available";
+                      const position = slotPosition(slot);
+
+                      return (
+                        <article
+                          key={slot.id}
+                          className={`absolute left-1.5 right-1.5 z-10 overflow-hidden rounded-lg border px-2.5 py-2 shadow-sm transition hover:z-20 hover:shadow-md ${
+                            available ? "border-blue-200 bg-blue-50 text-blue-950" : "border-slate-200 bg-slate-100 text-slate-600"
+                          }`}
+                          style={position}
+                        >
+                          <p className="truncate text-[11px] font-extrabold">
+                            {timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}
+                          </p>
+                          {!isTeacher && (
+                            <p className="mt-0.5 truncate text-[10px] font-semibold opacity-80">{teacher?.full_name || teacher?.email || "Professor"}</p>
+                          )}
+                          <div className="mt-1 flex items-center justify-between gap-1">
+                            <span className="truncate text-[10px] font-bold">{currency.format(Number(slot.lesson_price))}</span>
+                            {available && isTeacher && (
+                              <form action={removeAvailability}>
+                                <input type="hidden" name="slot_id" value={slot.id} />
+                                <button
+                                  type="submit"
+                                  className="rounded px-1.5 py-0.5 text-[10px] font-bold text-red-600 transition hover:bg-red-50"
+                                  title="Remover horário"
+                                >
+                                  Remover
+                                </button>
+                              </form>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
-      </div>
-    </main>
+
+        {/* Mobile: agenda em lista, sem espremer sete colunas */}
+        <div className="divide-y divide-slate-100 md:hidden">
+          {days.map((day) => {
+            const key = dateKey(day);
+            const daySlots = slots.filter((slot) => dateKey(new Date(slot.starts_at)) === key);
+            const isToday = key === todayKey;
+
+            return (
+              <div key={key} className={isToday ? "bg-blue-50/30" : "bg-white"}>
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div>
+                    <p className={`text-xs font-bold uppercase tracking-[0.08em] ${isToday ? "text-blue-600" : "text-slate-400"}`}>
+                      {isToday ? "Hoje" : shortDayLabel.format(day).replace(".", "")}
+                    </p>
+                    <p className="mt-0.5 text-sm font-extrabold capitalize text-slate-800">{fullDateLabel.format(day)}</p>
+                  </div>
+                  <span className={`grid h-9 w-9 place-items-center rounded-full text-sm font-extrabold ${isToday ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"}`}>
+                    {dayNumberLabel.format(day)}
+                  </span>
+                </div>
+
+                <div className="px-4 pb-4">
+                  {daySlots.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-slate-200 px-4 py-4 text-center text-xs font-medium text-slate-400">Nenhum horário disponível</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {daySlots.map((slot) => {
+                        const teacher = Array.isArray(slot.teacher) ? slot.teacher[0] : slot.teacher;
+                        const available = slot.status === "available";
+                        return (
+                          <article key={slot.id} className={`rounded-xl border p-3 ${available ? "border-blue-100 bg-blue-50/70" : "border-slate-200 bg-slate-50"}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-extrabold text-slate-900">
+                                  {timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}
+                                </p>
+                                {!isTeacher && <p className="mt-1 truncate text-xs font-semibold text-slate-600">{teacher?.full_name || teacher?.email || "Professor"}</p>}
+                                <p className="mt-1 text-xs font-bold text-blue-700">{currency.format(Number(slot.lesson_price))}</p>
+                              </div>
+                              {available && isTeacher && (
+                                <form action={removeAvailability}>
+                                  <input type="hidden" name="slot_id" value={slot.id} />
+                                  <button type="submit" className="rounded-lg px-2 py-1 text-xs font-bold text-red-600 transition hover:bg-red-50">Remover</button>
+                                </form>
+                              )}
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
   );
 }
