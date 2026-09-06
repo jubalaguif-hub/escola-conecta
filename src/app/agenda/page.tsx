@@ -42,6 +42,7 @@ const TIME_ZONE = "America/Sao_Paulo";
 const DAY_START_HOUR = 7;
 const DAY_END_HOUR = 24;
 const HOUR_HEIGHT = 64;
+const CALENDAR_TOP_PADDING = 24;
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -114,7 +115,7 @@ function slotPosition(slot: Slot) {
   const duration = Math.max(30, end >= start ? end - start : 30);
 
   return {
-    top: `${(topMinutes / 60) * HOUR_HEIGHT}px`,
+    top: `${CALENDAR_TOP_PADDING + (topMinutes / 60) * HOUR_HEIGHT}px`,
     height: `${Math.max(44, (duration / 60) * HOUR_HEIGHT)}px`,
   };
 }
@@ -277,30 +278,31 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{params.error}</div>
       )}
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <section className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)]">
+        <div className="flex flex-col gap-4 border-b border-blue-800/70 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-900 px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
-            <h2 className="text-base font-extrabold capitalize text-slate-900">{weekTitle(days)}</h2>
-            <p className="mt-0.5 text-xs text-slate-500">{slots.length} {slots.length === 1 ? "horário nesta semana" : "horários nesta semana"}</p>
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200">Visão semanal</p>
+            <h2 className="text-base font-extrabold capitalize text-white">{weekTitle(days)}</h2>
+            <p className="mt-1 text-xs text-blue-100/80">{slots.length} {slots.length === 1 ? "horário nesta semana" : "horários nesta semana"}</p>
           </div>
           <div className="flex items-center gap-2">
             <Link
               href={`/agenda?week=${weekOffset - 1}`}
               aria-label="Semana anterior"
-              className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+              className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20"
             >
               ←
             </Link>
             <Link
               href="/agenda"
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-white/20 bg-white px-4 py-2.5 text-sm font-bold text-blue-950 shadow-sm transition hover:bg-blue-50"
             >
               Hoje
             </Link>
             <Link
               href={`/agenda?week=${weekOffset + 1}`}
               aria-label="Próxima semana"
-              className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+              className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20"
             >
               →
             </Link>
@@ -310,18 +312,18 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         {/* Desktop: calendário temporal */}
         <div className="hidden overflow-x-auto md:block">
           <div className="min-w-[980px]">
-            <div className="grid grid-cols-[72px_repeat(7,minmax(120px,1fr))] border-b border-slate-200 bg-white">
-              <div className="border-r border-slate-100" />
+            <div className="grid grid-cols-[72px_repeat(7,minmax(120px,1fr))] border-b border-blue-100 bg-gradient-to-b from-blue-50/80 to-white">
+              <div className="border-r border-blue-100 bg-blue-50/40" />
               {days.map((day, index) => {
                 const key = dateKey(day);
                 const isToday = key === todayKey;
                 const weekend = index > 4;
                 return (
-                  <div key={key} className={`border-r border-slate-100 px-2 py-3 text-center last:border-r-0 ${weekend ? "bg-slate-50/60" : ""}`}>
-                    <p className={`text-[11px] font-bold uppercase tracking-[0.08em] ${isToday ? "text-blue-600" : "text-slate-400"}`}>
+                  <div key={key} className={`border-r border-blue-100 px-2 py-3 text-center last:border-r-0 ${weekend ? "bg-slate-50/70" : ""}`}>
+                    <p className={`text-[11px] font-extrabold uppercase tracking-[0.12em] ${isToday ? "text-blue-700" : weekend ? "text-slate-500" : "text-blue-600/80"}`}>
                       {shortDayLabel.format(day).replace(".", "")}
                     </p>
-                    <div className={`mx-auto mt-1 grid h-9 w-9 place-items-center rounded-full text-sm font-extrabold ${isToday ? "bg-blue-600 text-white" : "text-slate-800"}`}>
+                    <div className={`mx-auto mt-1 grid h-9 w-9 place-items-center rounded-full text-sm font-extrabold ${isToday ? "bg-blue-600 text-white shadow-sm ring-4 ring-blue-100" : "text-slate-900"}`}>
                       {dayNumberLabel.format(day)}
                     </div>
                   </div>
@@ -330,9 +332,9 @@ export default async function AgendaPage({ searchParams }: PageProps) {
             </div>
 
             <div className="grid grid-cols-[72px_repeat(7,minmax(120px,1fr))]">
-              <div className="relative border-r border-slate-100" style={{ height: `${visibleHours.length * HOUR_HEIGHT}px` }}>
+              <div className="relative border-r border-slate-100" style={{ height: `${CALENDAR_TOP_PADDING + visibleHours.length * HOUR_HEIGHT}px` }}>
                 {visibleHours.map((hour) => (
-                  <div key={hour} className="absolute right-3 text-[11px] font-medium text-slate-400" style={{ top: `${(hour - DAY_START_HOUR) * HOUR_HEIGHT - 7}px` }}>
+                  <div key={hour} className="absolute right-3 text-[11px] font-medium text-slate-400" style={{ top: `${CALENDAR_TOP_PADDING + (hour - DAY_START_HOUR) * HOUR_HEIGHT - 7}px` }}>
                     {String(hour).padStart(2, "0")}:00
                   </div>
                 ))}
@@ -348,13 +350,13 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                   <div
                     key={key}
                     className={`relative border-r border-slate-100 last:border-r-0 ${isToday ? "bg-blue-50/30" : weekend ? "bg-slate-50/45" : "bg-white"}`}
-                    style={{ height: `${visibleHours.length * HOUR_HEIGHT}px` }}
+                    style={{ height: `${CALENDAR_TOP_PADDING + visibleHours.length * HOUR_HEIGHT}px` }}
                   >
                     {visibleHours.map((hour) => (
                       <div
                         key={hour}
                         className="absolute inset-x-0 border-t border-slate-100"
-                        style={{ top: `${(hour - DAY_START_HOUR) * HOUR_HEIGHT}px` }}
+                        style={{ top: `${CALENDAR_TOP_PADDING + (hour - DAY_START_HOUR) * HOUR_HEIGHT}px` }}
                       />
                     ))}
 
