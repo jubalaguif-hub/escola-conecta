@@ -169,7 +169,6 @@ function getNavigation(role: string): NavItem[] {
       {
         label: "Aulas",
         icon: "video",
-        href: "/admin/aulas",
       },
       {
         label: "Calendário",
@@ -179,22 +178,18 @@ function getNavigation(role: string): NavItem[] {
       {
         label: "Presenças",
         icon: "check",
-        href: "/admin/presencas",
       },
       {
         label: "Cobranças",
         icon: "money",
-        href: "/admin/cobrancas",
       },
       {
         label: "Comunicações",
         icon: "chat",
-        href: "/admin/comunicacoes",
       },
       {
         label: "Configurações",
         icon: "settings",
-        href: "/admin/configuracoes",
       },
     ];
   }
@@ -334,16 +329,14 @@ export default async function DashboardPage() {
 
   const isAdmin = profile.role === "admin";
 
-  const [lessonsResult, enrollmentsResult] = isAdmin
+  const [lessonsResult, enrollmentsResult, teachersResult, studentsResult] = isAdmin
     ? await Promise.all([
-        supabase
-          .from("lessons")
-          .select("*", { count: "exact", head: true }),
-        supabase
-          .from("enrollments")
-          .select("*", { count: "exact", head: true }),
+        supabase.from("lessons").select("*", { count: "exact", head: true }),
+        supabase.from("enrollments").select("*", { count: "exact", head: true }),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "teacher"),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "student"),
       ])
-    : [{ count: 0 }, { count: 0 }];
+    : [{ count: 0 }, { count: 0 }, { count: 0 }, { count: 0 }];
 
   const firstName =
     profile.full_name?.split(" ")[0] || profile.email.split("@")[0];
@@ -484,102 +477,61 @@ export default async function DashboardPage() {
           </div>
         </header>
 
-        <div className="ec-content">
-          <section className="ec-privacy">
-            <div className="ec-privacy-icon">
-              <Icon name="shield" />
-            </div>
-
-            <div className="ec-privacy-copy">
-              <strong>
-                {isAdmin
-                  ? "Ambiente administrativo protegido"
-                  : "Este ambiente é somente seu"}
-              </strong>
-
-              <p>
-                {isAdmin
-                  ? "Cadastros, permissões e informações acadêmicas são acessíveis somente aos perfis autorizados."
-                  : "Suas aulas, mensagens, presença e materiais são exibidos conforme o seu perfil."}
-              </p>
-            </div>
-
-            <span className="ec-protected">🔒 Acesso restrito</span>
-          </section>
-
-          <section className="ec-welcome">
-            <div>
-              <p className="ec-eyebrow">{currentDate}</p>
-
-              <h1>
-                Olá, {firstName}! <span>👋</span>
-              </h1>
-
-              <p>
-                {isAdmin
-                  ? "Organize a agenda, os professores e os acessos da Clina."
-                  : "Acompanhe sua rotina escolar e tudo o que foi preparado para você."}
-              </p>
-            </div>
-          </section>
-
+        <div className="ec-content ec-content-premium">
           {isAdmin ? (
             <>
-              <section className="ec-quick-grid">
-                <Link href="/admin/usuarios" className="ec-quick-card">
-                  <span className="ec-quick-icon ec-quick-orange">
-                    <Icon name="users" />
-                  </span>
-
-                  <span className="ec-quick-copy">
-                    <strong>Gerenciar usuários</strong>
-                    <small>Professores e alunos</small>
-                  </span>
-                </Link>
-              </section>
-
-              <div className="ec-dashboard-grid">
-                <aside className="ec-panel">
-                  <div className="ec-panel-header">
-                    <div>
-                      <h3>Resumo acadêmico</h3>
-                      <p>Estrutura cadastrada</p>
+              <section className="premium-dashboard-hero">
+                <div className="premium-dashboard-copy">
+                  <p className="ec-eyebrow">{currentDate}</p>
+                  <h1>Olá, {firstName}! <span>👋</span></h1>
+                  <p>Tenha uma visão rápida da operação acadêmica, acessos e agenda da Clina.</p>
+                  <div className="premium-dashboard-actions">
+                    <Link href="/agenda" className="premium-primary-action"><Icon name="calendar" size={18} /> Ver calendário</Link>
+                    <Link href="/admin/usuarios" className="premium-secondary-action"><Icon name="users" size={18} /> Gerenciar usuários</Link>
+                  </div>
+                </div>
+                <div className="premium-dashboard-art" aria-hidden="true">
+                  <div className="premium-art-ring premium-art-ring-one" />
+                  <div className="premium-art-ring premium-art-ring-two" />
+                  <div className="premium-art-calendar">
+                    <div className="premium-art-calendar-top"><span/><span/></div>
+                    <div className="premium-art-calendar-grid">
+                      {Array.from({ length: 9 }).map((_, index) => <i key={index} />)}
                     </div>
                   </div>
+                  <div className="premium-art-clock"><span /></div>
+                  <div className="premium-art-claim">Educação<br/>que transforma<br/><strong>realidades</strong></div>
+                </div>
+              </section>
 
-                  <div className="ec-stat-grid">
-                    <article className="ec-stat">
-                      <span>Aulas</span>
-                      <strong>{lessonsResult.count || 0}</strong>
-                    </article>
+              <section className="premium-metrics-grid">
+                <article className="premium-metric-card"><span className="premium-metric-icon"><Icon name="video" /></span><div><strong>{lessonsResult.count || 0}</strong><small>Aulas cadastradas</small></div></article>
+                <article className="premium-metric-card"><span className="premium-metric-icon"><Icon name="users" /></span><div><strong>{teachersResult.count || 0}</strong><small>Professores</small></div></article>
+                <article className="premium-metric-card"><span className="premium-metric-icon"><Icon name="book" /></span><div><strong>{studentsResult.count || 0}</strong><small>Alunos</small></div></article>
+                <article className="premium-metric-card"><span className="premium-metric-icon"><Icon name="layers" /></span><div><strong>{enrollmentsResult.count || 0}</strong><small>Matrículas</small></div></article>
+              </section>
 
-                    <article className="ec-stat">
-                      <span>Matrículas</span>
-                      <strong>{enrollmentsResult.count || 0}</strong>
-                    </article>
+              <section className="premium-dashboard-grid">
+                <article className="premium-dashboard-panel">
+                  <div className="premium-panel-title"><div><span>ACESSOS RÁPIDOS</span><h2>Administração</h2></div><small>Atalhos principais</small></div>
+                  <div className="premium-shortcuts">
+                    <Link href="/admin/usuarios"><span><Icon name="users" /></span><div><strong>Usuários</strong><small>Permissões e acessos</small></div><b>→</b></Link>
+                    <Link href="/admin/professores"><span><Icon name="users" /></span><div><strong>Professores</strong><small>Equipe pedagógica</small></div><b>→</b></Link>
+                    <Link href="/agenda"><span><Icon name="calendar" /></span><div><strong>Calendário</strong><small>Agenda semanal</small></div><b>→</b></Link>
                   </div>
-                </aside>
-              </div>
+                </article>
+                <article className="premium-dashboard-panel premium-status-panel">
+                  <div className="premium-panel-title"><div><span>SEGURANÇA</span><h2>Ambiente protegido</h2></div></div>
+                  <div className="premium-security-badge"><Icon name="shield" size={28} /><div><strong>Acesso administrativo</strong><small>Cadastros e informações acadêmicas visíveis somente para perfis autorizados.</small></div></div>
+                </article>
+              </section>
             </>
           ) : (
             <section className="ec-primary-hero">
               <div className="ec-hero-copy">
-                <span className="ec-hero-label">
-                  {profile.role === "teacher"
-                    ? "AMBIENTE DO PROFESSOR"
-                    : "MEU MURAL"}
-                </span>
-
-                <h2>
-                  {profile.role === "teacher"
-                    ? "Suas turmas e aulas em um só lugar"
-                    : "Sua rotina escolar organizada"}
-                </h2>
-
-                <p>
-                  Este painel será preenchido automaticamente quando houver
-                  turmas, aulas e materiais vinculados ao seu perfil.
-                </p>
+                <span className="ec-hero-label">{profile.role === "teacher" ? "AMBIENTE DO PROFESSOR" : "MEU MURAL"}</span>
+                <h2>{profile.role === "teacher" ? "Suas turmas e aulas em um só lugar" : "Sua rotina escolar organizada"}</h2>
+                <p>Este painel será preenchido automaticamente quando houver turmas, aulas e materiais vinculados ao seu perfil.</p>
               </div>
             </section>
           )}
