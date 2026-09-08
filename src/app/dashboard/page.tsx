@@ -177,6 +177,11 @@ function getNavigation(role: string): NavItem[] {
         href: "/admin/usuarios",
       },
       {
+        label: "Professores",
+        icon: "users",
+        href: "/admin/professores",
+      },
+      {
         label: "Aulas",
         icon: "video",
       },
