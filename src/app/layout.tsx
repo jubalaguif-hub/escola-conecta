@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Clina Aulas Particulares",
+  title: "Eliane - Aulas Particulares",
   description: "Plataforma de agenda e aulas particulares da Clina.",
 };
 
