@@ -33,7 +33,6 @@ export default async function AgendaLayout({ children }: { children: ReactNode }
 
         <nav className="ec-navigation" aria-label="Navegação principal">
           <Link href="/dashboard" className="ec-nav-item"><span className="ec-nav-icon">⌂</span><span>Visão geral</span></Link>
-          {isAdmin && <Link href="/admin/cursos" className="ec-nav-item"><span className="ec-nav-icon">▣</span><span>Cursos</span></Link>}
           {isAdmin && <Link href="/admin/usuarios" className="ec-nav-item"><span className="ec-nav-icon">♧</span><span>Usuários</span></Link>}
           <Link href="/agenda" className="ec-nav-item ec-nav-item-active"><span className="ec-nav-icon">◷</span><span>Calendário</span></Link>
         </nav>

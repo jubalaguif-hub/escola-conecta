@@ -36,12 +36,6 @@ const roleLabels: Record<string, string> = {
   finance: "Financeiro",
 };
 
-const statusLabels: Record<string, string> = {
-  active: "Ativo",
-  draft: "Rascunho",
-  inactive: "Inativo",
-};
-
 function Icon({
   name,
   size = 20,
@@ -161,15 +155,6 @@ function getNavigation(role: string): NavItem[] {
         icon: "home",
         href: "/dashboard",
         active: true,
-      },
-      {
-        label: "Cursos",
-        icon: "book",
-        href: "/admin/cursos",
-      },
-      {
-        label: "Turmas",
-        icon: "layers",
       },
       {
         label: "Usuários",
@@ -344,41 +329,17 @@ export default async function DashboardPage() {
 
   const isAdmin = profile.role === "admin";
 
-  const [
-    coursesResult,
-    classesResult,
-    lessonsResult,
-    enrollmentsResult,
-    recentCoursesResult,
-  ] = isAdmin
+  const [lessonsResult, enrollmentsResult] = isAdmin
     ? await Promise.all([
-        supabase
-          .from("courses")
-          .select("*", { count: "exact", head: true }),
-        supabase
-          .from("classes")
-          .select("*", { count: "exact", head: true }),
         supabase
           .from("lessons")
           .select("*", { count: "exact", head: true }),
         supabase
           .from("enrollments")
           .select("*", { count: "exact", head: true }),
-        supabase
-          .from("courses")
-          .select("id, title, workload_hours, status")
-          .order("created_at", { ascending: false })
-          .limit(5),
       ])
-    : [
-        { count: 0 },
-        { count: 0 },
-        { count: 0 },
-        { count: 0 },
-        { data: [] },
-      ];
+    : [{ count: 0 }, { count: 0 }];
 
-  const recentCourses = recentCoursesResult.data || [];
   const firstName =
     profile.full_name?.split(" ")[0] || profile.email.split("@")[0];
 
@@ -559,54 +520,7 @@ export default async function DashboardPage() {
 
           {isAdmin ? (
             <>
-              <section className="ec-primary-hero">
-                <div className="ec-hero-copy">
-                  <span className="ec-hero-label">
-                    ESTRUTURA ACADÊMICA
-                  </span>
-
-                  <h2>
-                    {coursesResult.count || 0}{" "}
-                    {(coursesResult.count || 0) === 1
-                      ? "curso cadastrado"
-                      : "cursos cadastrados"}
-                  </h2>
-
-                  <p>
-                    Cadastre cursos e prepare a organização das turmas,
-                    professores, alunos e aulas.
-                  </p>
-                </div>
-
-                <Link href="/admin/cursos" className="ec-hero-button">
-                  Gerenciar cursos
-                  <Icon name="arrow" size={17} />
-                </Link>
-              </section>
-
               <section className="ec-quick-grid">
-                <Link href="/admin/cursos" className="ec-quick-card">
-                  <span className="ec-quick-icon ec-quick-purple">
-                    <Icon name="plus" />
-                  </span>
-
-                  <span className="ec-quick-copy">
-                    <strong>Cadastrar curso</strong>
-                    <small>Adicionar um novo curso</small>
-                  </span>
-                </Link>
-
-                <div className="ec-quick-card" aria-disabled="true">
-                  <span className="ec-quick-icon ec-quick-green">
-                    <Icon name="layers" />
-                  </span>
-
-                  <span className="ec-quick-copy">
-                    <strong>Organizar turmas</strong>
-                    <small>Próximo módulo</small>
-                  </span>
-                </div>
-
                 <Link href="/admin/usuarios" className="ec-quick-card">
                   <span className="ec-quick-icon ec-quick-orange">
                     <Icon name="users" />
@@ -620,50 +534,6 @@ export default async function DashboardPage() {
               </section>
 
               <div className="ec-dashboard-grid">
-                <section className="ec-panel">
-                  <div className="ec-panel-header">
-                    <div>
-                      <h2>Cursos recentes</h2>
-                      <p>Últimos cadastros realizados na plataforma</p>
-                    </div>
-
-                    <Link
-                      href="/admin/cursos"
-                      className="text-sm font-semibold text-violet-600 no-underline"
-                    >
-                      Ver todos
-                    </Link>
-                  </div>
-
-                  {recentCourses.length === 0 ? (
-                    <div className="ec-empty">
-                      Nenhum curso cadastrado ainda.
-                    </div>
-                  ) : (
-                    <div className="ec-list">
-                      {recentCourses.map((course) => (
-                        <article key={course.id} className="ec-list-item">
-                          <span className="ec-list-marker" />
-
-                          <div className="ec-list-copy">
-                            <strong>{course.title}</strong>
-
-                            <span>
-                              {course.workload_hours !== null
-                                ? `${course.workload_hours} horas`
-                                : "Carga horária não informada"}
-                            </span>
-                          </div>
-
-                          <span className="ec-status">
-                            {statusLabels[course.status] || course.status}
-                          </span>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </section>
-
                 <aside className="ec-panel">
                   <div className="ec-panel-header">
                     <div>
@@ -673,16 +543,6 @@ export default async function DashboardPage() {
                   </div>
 
                   <div className="ec-stat-grid">
-                    <article className="ec-stat">
-                      <span>Cursos</span>
-                      <strong>{coursesResult.count || 0}</strong>
-                    </article>
-
-                    <article className="ec-stat">
-                      <span>Turmas</span>
-                      <strong>{classesResult.count || 0}</strong>
-                    </article>
-
                     <article className="ec-stat">
                       <span>Aulas</span>
                       <strong>{lessonsResult.count || 0}</strong>

@@ -29,15 +29,6 @@ const navigation: NavigationItem[] = [
     href: "/dashboard",
   },
   {
-    label: "Cursos",
-    icon: "book",
-    href: "/admin/cursos",
-  },
-  {
-    label: "Turmas",
-    icon: "layers",
-  },
-  {
     label: "Usuários",
     icon: "users",
     href: "/admin/usuarios",
