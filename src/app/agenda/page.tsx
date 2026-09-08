@@ -328,8 +328,8 @@ export default async function AgendaPage({ searchParams }: PageProps) {
 
   return (
     <div className="min-w-0 premium-agenda-page">
-      <div className="premium-page-head mb-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      <section className="agenda-premium-hero">
+        <div className="agenda-premium-copy">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-500">
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-blue-600">◷</span>
             Calendário
@@ -344,23 +344,28 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                 ? "Consulte os horários disponíveis e encontre o melhor momento para sua aula."
                 : "Acompanhe os horários disponíveis na plataforma."}
           </p>
+          {canManageAvailability && (
+            <div className="agenda-premium-cta">
+              <NewAvailabilityModal
+                action={createAvailability}
+                defaultDate={dateKey(new Date())}
+                subjects={isTeacher && Array.isArray(profile.teaching_subjects) ? profile.teaching_subjects.filter(Boolean) : []}
+                teachers={teachers}
+                isAdmin={isAdmin}
+              />
+            </div>
+          )}
         </div>
-        <div className="premium-agenda-motto" aria-hidden="true">
-          <span>Educação</span>
-          <span>que transforma</span>
-          <span>realidades</span>
-          <i />
+        <div className="agenda-premium-art" aria-hidden="true">
+          <div className="agenda-art-spark a1"/><div className="agenda-art-spark a2"/><div className="agenda-art-spark a3"/>
+          <div className="agenda-art-calendar">
+            <div className="agenda-art-hooks"><span/><span/></div>
+            <div className="agenda-art-grid">{Array.from({ length: 6 }).map((_, index) => <i key={index} />)}</div>
+          </div>
+          <div className="agenda-art-clock"><span/></div>
+          <div className="agenda-art-claim">Educação<br/>que transforma<br/><strong>realidades</strong><em/></div>
         </div>
-        {canManageAvailability && (
-          <NewAvailabilityModal
-            action={createAvailability}
-            defaultDate={dateKey(new Date())}
-            subjects={isTeacher && Array.isArray(profile.teaching_subjects) ? profile.teaching_subjects.filter(Boolean) : []}
-            teachers={teachers}
-            isAdmin={isAdmin}
-          />
-        )}
-      </div>
+      </section>
 
       {params.created === "1" && (
         <div className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
