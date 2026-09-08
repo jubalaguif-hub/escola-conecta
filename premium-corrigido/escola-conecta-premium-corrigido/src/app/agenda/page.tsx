@@ -327,7 +327,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   }, 0);
 
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 premium-agenda-page">
       <div className="premium-page-head mb-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-500">
@@ -344,6 +344,12 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                 ? "Consulte os horários disponíveis e encontre o melhor momento para sua aula."
                 : "Acompanhe os horários disponíveis na plataforma."}
           </p>
+        </div>
+        <div className="premium-agenda-motto" aria-hidden="true">
+          <span>Educação</span>
+          <span>que transforma</span>
+          <span>realidades</span>
+          <i />
         </div>
         {canManageAvailability && (
           <NewAvailabilityModal
@@ -371,7 +377,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
       )}
 
       {isAdmin && (
-        <form method="get" className="premium-toolbar mb-4 sm:grid-cols-[1fr_1fr_auto]">
+        <form method="get" className="premium-toolbar premium-agenda-toolbar mb-4">
           <input type="hidden" name="week" value={weekOffset} />
           <label className="block">
             <span className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">Professor</span>
@@ -399,8 +405,12 @@ export default async function AgendaPage({ searchParams }: PageProps) {
               ))}
             </select>
           </label>
+          <label className="block">
+            <span className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">Período</span>
+            <input readOnly value={weekTitle(days)} aria-label="Período da semana" />
+          </label>
           <div className="flex gap-2">
-            <button type="submit" className="premium-filter-button flex-1">Filtrar</button>
+            <button type="submit" className="premium-filter-button flex-1">⌁&nbsp;&nbsp; Filtrar</button>
             {(selectedTeacherId || selectedSubject) && (
               <Link href={`/agenda?week=${weekOffset}`} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50">Limpar</Link>
             )}
@@ -436,6 +446,9 @@ export default async function AgendaPage({ searchParams }: PageProps) {
             >
               →
             </Link>
+            <div className="premium-view-switch" aria-label="Visualização">
+              <span className="active">Semana</span><span title="Visualização mensal em próxima etapa">Mês</span>
+            </div>
           </div>
         </div>
 
