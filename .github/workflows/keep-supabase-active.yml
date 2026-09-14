@@ -1,0 +1,24 @@
+name: Manter Supabase ativo
+
+on:
+  schedule:
+    - cron: '0 9,15,21 * * *'
+
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Gerar atividade no Supabase
+        run: |
+          curl --fail --silent --show-error \
+            -X POST \
+            "$SUPABASE_URL/rest/v1/rpc/keep_alive" \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
