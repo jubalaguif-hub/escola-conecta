@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import OfferingsEditor, { type Offering } from "./OfferingsEditor";
 import { createClient } from "@/lib/supabase/server";
 
 const statusLabels: Record<string, string> = {
@@ -34,6 +36,33 @@ async function getAdmin() {
   return supabase;
 }
 
+async function saveOfferings(formData: FormData) {
+  "use server";
+  const supabase = await getAdmin();
+  const teacherId = String(formData.get("teacher_id") || "");
+  let offerings: Offering[];
+  try { offerings = JSON.parse(String(formData.get("offerings") || "[]")); }
+  catch { redirect("/admin/professores?error=Dados%20invalidos"); }
+  const validLevels = ["Fundamental I", "Fundamental II", "Ensino Médio", "Ensino Superior"];
+  if (!teacherId || !Array.isArray(offerings) || offerings.length === 0 || offerings.length > 50 ||
+      offerings.some(item => !validLevels.includes(item.grade_level) || typeof item.subject !== "string" || !item.subject.trim() || item.subject.length > 100)) {
+    redirect("/admin/professores?error=Revise%20os%20niveis%20e%20materias");
+  }
+  const clean = Array.from(new Map(offerings.map(item => {
+    const record = { grade_level: item.grade_level, subject: item.subject.trim() };
+    return [`${record.grade_level}::${record.subject.toLowerCase()}`, record] as const;
+  })).values());
+  const { error } = await supabase.from("profiles").update({
+    teaching_offerings: clean,
+    teaching_grade_levels: [...new Set(clean.map(item => item.grade_level))],
+    teaching_subjects: [...new Set(clean.map(item => item.subject))]
+  }).eq("id", teacherId).eq("role", "teacher");
+  if (error) redirect("/admin/professores?error=Nao%20foi%20possivel%20salvar");
+  revalidatePath("/admin/professores");
+  revalidatePath("/agenda");
+  redirect("/admin/professores?updated=1");
+}
+
 function initialsFrom(name: string) {
   return name
     .split(" ")
@@ -48,7 +77,7 @@ export default async function TeachersPage() {
   const supabase = await getAdmin();
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, full_name, email, status, teaching_area, teaching_subjects, teaching_grade_levels, created_at")
+    .select("id, full_name, email, status, teaching_area, teaching_subjects, teaching_grade_levels, teaching_offerings, created_at")
     .eq("role", "teacher")
     .order("full_name", { ascending: true });
 
@@ -95,6 +124,7 @@ export default async function TeachersPage() {
         </article>
       </section>
 
+      <p className="mb-4 text-sm text-emerald-700">Edite os níveis e matérias de cada professor e salve para disponibilizá-los na agenda.</p>
       {teachers.length === 0 ? (
         <div className="ec-panel text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-100 text-2xl">🎓</div>
@@ -152,6 +182,7 @@ export default async function TeachersPage() {
                     </p>
                   )}
                 </div>
+                <OfferingsEditor teacherId={teacher.id} initial={Array.isArray(teacher.teaching_offerings) ? teacher.teaching_offerings as Offering[] : []} action={saveOfferings} />
               </article>
             );
           })}

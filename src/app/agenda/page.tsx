@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import NewAvailabilityModal from "./components/NewAvailabilityModal";
+import OfferingsEditor, { type Offering } from "../admin/professores/OfferingsEditor";
 
 type PageProps = {
   searchParams: Promise<{
@@ -22,6 +23,7 @@ type Slot = {
   ends_at: string;
   lesson_price: number | string;
   subject: string | null;
+  grade_level: string | null;
   status: string;
   teacher:
     | {
@@ -145,13 +147,40 @@ async function getCurrentProfile() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, email, role, status, teaching_area, teaching_subjects, teaching_grade_levels")
+    .select("id, full_name, email, role, status, teaching_area, teaching_subjects, teaching_grade_levels, teaching_offerings")
     .eq("id", user.id)
     .single();
 
   if (!profile || profile.status !== "active") redirect("/dashboard");
 
   return { supabase, user, profile };
+}
+
+async function saveMyOfferings(formData: FormData) {
+  "use server";
+  const { supabase, user, profile } = await getCurrentProfile();
+  if (profile.role !== "teacher") redirect("/dashboard");
+  let offerings: Offering[];
+  try { offerings = JSON.parse(String(formData.get("offerings") || "[]")); }
+  catch { redirect("/agenda?error=Dados%20invalidos"); }
+  const validLevels = ["Fundamental I", "Fundamental II", "Ensino Médio", "Ensino Superior"];
+  if (!Array.isArray(offerings) || !offerings.length || offerings.length > 50 ||
+      offerings.some(item => !validLevels.includes(item.grade_level) || typeof item.subject !== "string" || !item.subject.trim() || item.subject.length > 100)) {
+    redirect("/agenda?error=Revise%20seus%20niveis%20e%20materias");
+  }
+  const clean = Array.from(new Map(offerings.map(item => {
+    const record = { grade_level: item.grade_level, subject: item.subject.trim() };
+    return [`${record.grade_level}::${record.subject.toLowerCase()}`, record] as const;
+  })).values());
+  const { error } = await supabase.from("profiles").update({
+    teaching_offerings: clean,
+    teaching_grade_levels: [...new Set(clean.map(item => item.grade_level))],
+    teaching_subjects: [...new Set(clean.map(item => item.subject))]
+  }).eq("id", user.id).eq("role", "teacher");
+  if (error) redirect("/agenda?error=Nao%20foi%20possivel%20salvar");
+  revalidatePath("/agenda");
+  revalidatePath("/admin/professores");
+  redirect("/agenda?updated=1");
 }
 
 async function createAvailability(formData: FormData) {
@@ -167,9 +196,11 @@ async function createAvailability(formData: FormData) {
   const duration = Number(formData.get("duration") || 0);
   const price = Number(formData.get("price") || 0);
   const subject = String(formData.get("subject") || "").trim();
+  const gradeLevel = String(formData.get("grade_level") || "").trim();
 
   let targetTeacherId = user.id;
   let subjects: string[] = Array.isArray(profile.teaching_subjects) ? profile.teaching_subjects.filter(Boolean) : [];
+  let offerings: { grade_level: string; subject: string }[] = Array.isArray(profile.teaching_offerings) ? profile.teaching_offerings : [];
 
   if (profile.role === "admin") {
     targetTeacherId = String(formData.get("teacher_id") || "");
@@ -179,7 +210,7 @@ async function createAvailability(formData: FormData) {
 
     const { data: targetTeacher } = await supabase
       .from("profiles")
-      .select("id, role, status, teaching_subjects")
+      .select("id, role, status, teaching_subjects, teaching_offerings")
       .eq("id", targetTeacherId)
       .eq("role", "teacher")
       .eq("status", "active")
@@ -190,10 +221,15 @@ async function createAvailability(formData: FormData) {
     }
 
     subjects = Array.isArray(targetTeacher.teaching_subjects) ? targetTeacher.teaching_subjects.filter(Boolean) : [];
+    offerings = Array.isArray(targetTeacher.teaching_offerings) ? targetTeacher.teaching_offerings : [];
   }
 
   if (!date || !time || duration < 15 || price <= 0 || !subject) {
     redirect("/agenda?error=Preencha%20mat%C3%A9ria%2C%20data%2C%20hor%C3%A1rio%2C%20dura%C3%A7%C3%A3o%20e%20valor%20corretamente.");
+  }
+
+  if (!gradeLevel || !offerings.some((offering) => offering.grade_level === gradeLevel && offering.subject === subject)) {
+    redirect("/agenda?error=Selecione%20uma%20combina%C3%A7%C3%A3o%20de%20n%C3%ADvel%20e%20mat%C3%A9ria%20cadastrada%20para%20o%20professor.");
   }
 
   if (!subjects.includes(subject)) {
@@ -213,6 +249,7 @@ async function createAvailability(formData: FormData) {
     ends_at: endsAt.toISOString(),
     lesson_price: price,
     subject,
+    grade_level: gradeLevel,
   });
 
   if (error) {
@@ -276,12 +313,13 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     full_name: string | null;
     email: string | null;
     teaching_subjects: string[] | null;
+    teaching_offerings: { grade_level: string; subject: string }[] | null;
   }[] = [];
 
   if (isAdmin) {
     const { data: teachersData } = await supabase
       .from("profiles")
-      .select("id, full_name, email, teaching_subjects")
+      .select("id, full_name, email, teaching_subjects, teaching_offerings")
       .eq("role", "teacher")
       .eq("status", "active")
       .order("full_name");
@@ -293,6 +331,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     id: teacher.id,
     label: teacher.full_name || teacher.email || "Professor",
     subjects: Array.isArray(teacher.teaching_subjects) ? teacher.teaching_subjects.filter(Boolean) : [],
+    offerings: Array.isArray(teacher.teaching_offerings) ? teacher.teaching_offerings : [],
   }));
 
   const allTeacherSubjects = Array.from(new Set(teachers.flatMap((teacher) => teacher.subjects))).sort((a, b) =>
@@ -302,7 +341,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   let slotsQuery = supabase
     .from("availability_slots")
     .select(
-      "id, teacher_id, starts_at, ends_at, lesson_price, subject, status, teacher:profiles!availability_slots_teacher_id_fkey(full_name, email, teaching_area, teaching_subjects, teaching_grade_levels)"
+      "id, teacher_id, starts_at, ends_at, lesson_price, subject, grade_level, status, teacher:profiles!availability_slots_teacher_id_fkey(full_name, email, teaching_area, teaching_subjects, teaching_grade_levels)"
     )
     .gte("starts_at", monday.toISOString())
     .lt("starts_at", weekEnd.toISOString())
@@ -344,6 +383,12 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                 ? "Consulte os horários disponíveis e encontre o melhor momento para sua aula."
                 : "Acompanhe os horários disponíveis na plataforma."}
           </p>
+          {isTeacher && (
+            <details className="mb-4 rounded-2xl border border-blue-100 bg-white p-4 text-slate-900">
+              <summary className="cursor-pointer text-sm font-bold text-blue-800">Editar meus níveis de ensino e matérias</summary>
+              <OfferingsEditor teacherId={profile.id} initial={Array.isArray(profile.teaching_offerings) ? profile.teaching_offerings : []} action={saveMyOfferings} />
+            </details>
+          )}
           {canManageAvailability && (
             <div className="agenda-premium-cta">
               <NewAvailabilityModal
@@ -351,6 +396,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                 defaultDate={dateKey(new Date())}
                 subjects={isTeacher && Array.isArray(profile.teaching_subjects) ? profile.teaching_subjects.filter(Boolean) : []}
                 teachers={teachers}
+                offerings={isTeacher && Array.isArray(profile.teaching_offerings) ? profile.teaching_offerings : []}
                 isAdmin={isAdmin}
               />
             </div>
@@ -525,7 +571,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                             {timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}
                           </p>
                           {slot.subject && (
-                            <p className="mt-0.5 truncate text-[10px] font-extrabold text-blue-700">{slot.subject}</p>
+                            <p className="mt-0.5 truncate text-[10px] font-extrabold text-blue-700">{slot.grade_level ? `${slot.grade_level} · ` : ""}{slot.subject}</p>
                           )}
                           {!isTeacher && (
                             <p className="mt-0.5 truncate text-[10px] font-semibold opacity-80">{teacher?.full_name || teacher?.email || "Professor"}</p>
@@ -591,7 +637,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                                 <p className="text-sm font-extrabold text-slate-900">
                                   {timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}
                                 </p>
-                                {slot.subject && <p className="mt-1 text-xs font-extrabold text-blue-700">{slot.subject}</p>}
+                                {slot.subject && <p className="mt-1 text-xs font-extrabold text-blue-700">{slot.grade_level ? `${slot.grade_level} · ` : ""}{slot.subject}</p>}
                                 {!isTeacher && <p className="mt-1 truncate text-xs font-semibold text-slate-600">{teacher?.full_name || teacher?.email || "Professor"}</p>}
                                 <p className="mt-1 text-xs font-bold text-blue-700">{currency.format(Number(slot.lesson_price))}</p>
                               </div>

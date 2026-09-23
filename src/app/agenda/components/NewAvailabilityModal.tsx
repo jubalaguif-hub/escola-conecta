@@ -6,12 +6,14 @@ type TeacherOption = {
   id: string;
   label: string;
   subjects: string[];
+  offerings: { grade_level: string; subject: string }[];
 };
 
 type Props = {
   action: (formData: FormData) => void | Promise<void>;
   defaultDate?: string;
   subjects?: string[];
+  offerings?: { grade_level: string; subject: string }[];
   teachers?: TeacherOption[];
   isAdmin?: boolean;
 };
@@ -20,18 +22,22 @@ export default function NewAvailabilityModal({
   action,
   defaultDate,
   subjects = [],
+  offerings = [],
   teachers = [],
   isAdmin = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [teacherId, setTeacherId] = useState("");
+  const [gradeLevel, setGradeLevel] = useState("");
 
   const selectedTeacher = useMemo(
     () => teachers.find((teacher) => teacher.id === teacherId),
     [teacherId, teachers]
   );
 
-  const availableSubjects = isAdmin ? selectedTeacher?.subjects ?? [] : subjects;
+  const availableOfferings = isAdmin ? selectedTeacher?.offerings ?? [] : offerings;
+  const availableLevels = [...new Set(availableOfferings.map((entry) => entry.grade_level))];
+  const availableSubjects = [...new Set(availableOfferings.filter((entry) => entry.grade_level === gradeLevel).map((entry) => entry.subject))];
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -52,6 +58,7 @@ export default function NewAvailabilityModal({
   function closeModal() {
     setOpen(false);
     setTeacherId("");
+    setGradeLevel("");
   }
 
   return (
@@ -105,7 +112,7 @@ export default function NewAvailabilityModal({
                   <select
                     name="teacher_id"
                     value={teacherId}
-                    onChange={(event) => setTeacherId(event.target.value)}
+                    onChange={(event) => { setTeacherId(event.target.value); setGradeLevel(""); }}
                     required
                     className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
                   >
@@ -121,11 +128,20 @@ export default function NewAvailabilityModal({
               )}
 
               <label className="block">
+                <span className="text-sm font-semibold text-slate-700">Nível de ensino</span>
+                <select name="grade_level" value={gradeLevel} onChange={(event) => setGradeLevel(event.target.value)} required
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm font-medium text-slate-900 outline-none focus:border-blue-500">
+                  <option value="">Selecione o nível de ensino</option>
+                  {availableLevels.map((level) => <option key={level} value={level}>{level}</option>)}
+                </select>
+                {availableLevels.length === 0 && <p className="mt-2 text-xs text-amber-700">Cadastre os níveis e matérias do professor na área Professores.</p>}
+              </label>
+              <label className="block">
                 <span className="text-sm font-semibold text-slate-700">Matéria da aula</span>
                 {availableSubjects.length > 0 ? (
                   <>
                     <select
-                      key={teacherId || "own-subjects"}
+                      key={`${teacherId}-${gradeLevel}`}
                       name="subject"
                       defaultValue={availableSubjects.length === 1 ? availableSubjects[0] : ""}
                       required
@@ -223,7 +239,7 @@ export default function NewAvailabilityModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={availableSubjects.length === 0 || (isAdmin && !teacherId)}
+                  disabled={!gradeLevel || availableSubjects.length === 0 || (isAdmin && !teacherId)}
                   className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   Disponibilizar horário
