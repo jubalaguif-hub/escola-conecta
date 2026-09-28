@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import OfferingsEditor, { type Offering } from "./OfferingsEditor";
@@ -92,6 +93,7 @@ export default async function TeachersPage() {
 
   return (
     <div className="premium-page premium-functional-page">
+      <Link href="/admin/professores/solicitacoes" className="mb-4 inline-block rounded-xl bg-[#173b73] px-5 py-3 font-semibold text-white">Analisar solicitações de professores →</Link>
       <section className="premium-page-head">
         <p className="ec-eyebrow">EQUIPE PEDAGÓGICA</p>
         <h1 className="m-0 text-3xl font-bold tracking-tight text-slate-900">Professores</h1>
