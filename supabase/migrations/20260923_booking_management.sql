@@ -104,7 +104,7 @@ begin
  values(s.id,auth.uid(),s.teacher_id,trim(p_student_name),trim(p_student_phone),p_referral_source,
     coalesce(s.subject,'Aula particular'),s.grade_level,s.starts_at,s.ends_at,s.lesson_price,true)
  returning id into b;
- update public.availability_slots set status='booked' where id=s.id;
+ update public.availability_slots set status='reserved' where id=s.id;
  perform public.enqueue_lesson_notifications(b,'scheduled');
  return b;
 end $$;

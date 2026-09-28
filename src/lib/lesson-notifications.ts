@@ -27,7 +27,10 @@ function messageFor(booking: Booking, event: string) {
     dateStyle: "full", timeStyle: "short", timeZone: "America/Sao_Paulo",
   }).format(new Date(booking.starts_at));
   const status = event === "scheduled" ? "Nova aula agendada" :
-    event === "completed" ? "Aula realizada" : "Aluno ausente";
+    event === "rescheduled" ? "Aula remarcada" :
+    event === "cancelled" ? "Aula cancelada" :
+    event === "completed" ? "Aula realizada" :
+    event === "no_show" ? "Aluno ausente" : "Atualização da aula";
   return { status, when,
     text: `Escola Conecta — ${status}. Aluno: ${booking.student_name}. ${booking.subject}${booking.grade_level ? ` (${booking.grade_level})` : ""}. ${when}. Consulte a plataforma para mais detalhes.`,
   };

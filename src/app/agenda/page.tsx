@@ -378,9 +378,9 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   const filterQuery = (isAdmin || isStudent)
     ? `${selectedTeacherId ? `&teacher=${encodeURIComponent(selectedTeacherId)}` : ""}${selectedSubject ? `&subject=${encodeURIComponent(selectedSubject)}` : ""}${selectedGrade ? `&grade=${encodeURIComponent(selectedGrade)}` : ""}${selectedStatus ? `&status=${encodeURIComponent(selectedStatus)}` : ""}`
     : "";
-  const reservedCount = slots.filter((slot) => slot.status === "booked").length;
+  const reservedCount = slots.filter((slot) => slot.status === "reserved" || slot.status === "booked").length;
   const allGrades = Array.from(new Set(teachers.flatMap((teacher) => teacher.offerings.map((entry) => entry.grade_level)))).filter(Boolean).sort();
-  const statusLabel = (status: string) => status === "available" ? "Disponível" : status === "booked" ? "Reservado" : "Indisponível";
+  const statusLabel = (status: string) => status === "available" ? "Disponível" : (status === "reserved" || status === "booked") ? "Agendado" : "Indisponível";
   const weeklyTeacherCount = new Set(slots.map((slot) => slot.teacher_id)).size;
   const availableCount = slots.filter((slot) => slot.status === "available").length;
   const weeklyHours = slots.reduce((total, slot) => {
@@ -482,7 +482,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
               <select name="status" defaultValue={selectedStatus} className="mt-2 block w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900">
                 <option value="">Todas as situações</option>
                 <option value="available">Disponível</option>
-                <option value="booked">Reservado</option>
+                <option value="reserved">Agendado</option>
               </select>
             </label>}
             <div className="flex gap-2"><button type="submit" className="flex-1 rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white">Filtrar</button>
@@ -505,7 +505,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         </div>
         {(isTeacher || isAdmin) && <div className="grid gap-3 border-b border-blue-100 bg-white p-4 sm:grid-cols-3 sm:p-6">
           <div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs font-bold text-blue-700">Disponíveis</p><p className="mt-1 text-3xl font-extrabold text-[#173B73]">{availableCount}</p></div>
-          <div className="rounded-2xl bg-amber-50 p-4"><p className="text-xs font-bold text-amber-800">Reservados</p><p className="mt-1 text-3xl font-extrabold text-amber-900">{reservedCount}</p></div>
+          <div className="rounded-2xl bg-amber-50 p-4"><p className="text-xs font-bold text-amber-800">Agendados</p><p className="mt-1 text-3xl font-extrabold text-amber-900">{reservedCount}</p></div>
           <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold text-slate-600">Total na semana</p><p className="mt-1 text-3xl font-extrabold text-slate-900">{slots.length}</p></div>
         </div>}
         <div className="space-y-5 p-4 sm:p-6">
@@ -523,7 +523,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                 {daySlots.map((slot) => {
                   const teacher = Array.isArray(slot.teacher) ? slot.teacher[0] : slot.teacher;
                   const available = slot.status === "available";
-                  const reserved = slot.status === "booked";
+                  const reserved = slot.status === "reserved" || slot.status === "booked";
                   const duration = Math.max(0, (new Date(slot.ends_at).getTime() - new Date(slot.starts_at).getTime()) / 60000);
                   return <article key={slot.id} className={`min-w-0 rounded-2xl border bg-white p-5 shadow-sm ${available ? "border-blue-200" : reserved ? "border-amber-200" : "border-slate-200"}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">

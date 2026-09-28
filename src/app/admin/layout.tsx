@@ -4,6 +4,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AdminNavigation from "@/components/admin-navigation";
+import NotificationBell, { type PlatformNotification } from "@/components/notification-bell";
+import SignOutButton from "@/components/sign-out-button";
 
 type UtilityIconName = "chat" | "search" | "bell";
 
@@ -78,6 +80,15 @@ export default async function AdminLayout({
     redirect("/dashboard");
   }
 
+  const { data: notificationRows } = await supabase
+    .from("notifications")
+    .select("id,title,message,href,created_at,read_at")
+    .eq("recipient_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  const notifications = (notificationRows || []) as PlatformNotification[];
+
   const displayName =
     profile.full_name || profile.email.split("@")[0];
 
@@ -121,6 +132,8 @@ export default async function AdminLayout({
           <span className="ec-support-link">Falar com suporte</span>
         </section>
 
+        <SignOutButton />
+
         <div className="ec-profile premium-profile">
           <div className="ec-avatar">{initials}</div>
 
@@ -158,18 +171,16 @@ export default async function AdminLayout({
             />
           </label>
 
-          <div className="ec-identity">
+          <Link href="/dashboard" className="ec-identity ec-identity-link" title="Voltar para a visão geral">
             <span>🔒</span>
 
             <div className="ec-identity-copy">
               <strong>Painel administrativo</strong>
               <small>{profile.email}</small>
             </div>
-          </div>
+          </Link>
 
-          <div className="ec-notification" aria-label="Notificações">
-            <UtilityIcon name="bell" size={19} />
-          </div>
+          <NotificationBell initialNotifications={notifications} />
         </header>
 
         <div className="ec-content premium-content">{children}</div>

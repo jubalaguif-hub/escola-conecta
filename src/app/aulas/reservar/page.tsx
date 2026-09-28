@@ -49,9 +49,11 @@ export default async function ReservePage({ searchParams }: Props) {
     return <main className="mx-auto max-w-xl p-8"><h1 className="text-2xl font-bold">Horário indisponível</h1><p className="my-4">Esta aula já foi reservada ou o prazo passou.</p><Link href="/agenda" className="text-blue-700 underline">Escolher outro horário</Link></main>;
   }
   const teacher = Array.isArray(slot.teacher) ? slot.teacher[0] : slot.teacher;
-  return <main className="min-h-screen bg-[#f2f6fd] px-4 py-12 text-slate-800">
+  return <main className="text-slate-800">
     <div className="mx-auto max-w-2xl rounded-3xl border border-blue-100 bg-white p-7 shadow-xl shadow-blue-950/10 sm:p-10">
-      <Link href="/agenda" className="text-sm font-semibold text-blue-700">← Voltar à agenda</Link>
+      <div className="flex items-center justify-between gap-4">
+        <Link href="/agenda" className="text-sm font-semibold text-blue-700">← Voltar à agenda</Link>
+      </div>
       <p className="mt-7 text-xs font-bold uppercase tracking-widest text-blue-600">Escola Conecta • Agendamento</p>
       <h1 className="mt-2 text-3xl font-extrabold text-[#173B73]">Confirme sua aula</h1>
       <div className="my-7 rounded-2xl bg-blue-50 p-5 text-sm leading-7">
