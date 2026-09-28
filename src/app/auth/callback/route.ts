@@ -40,6 +40,11 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
+      // Libera automaticamente apenas novos alunos pendentes; nunca professores ou contas bloqueadas.
+      if (next !== "/professor/cadastro") {
+        const { error: activationError } = await supabase.rpc("activate_my_student_profile");
+        if (activationError) console.error("Ativação automática do aluno indisponível", activationError.message);
+      }
       return NextResponse.redirect(`${publicOrigin}${next}`);
     }
   }

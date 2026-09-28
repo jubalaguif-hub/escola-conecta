@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import NotificationBell, { type PlatformNotification } from "@/components/notification-bell";
+import SignOutButton from "@/components/sign-out-button";
 
 type IconName =
   | "home"
@@ -150,126 +152,31 @@ function Icon({
 function getNavigation(role: string): NavItem[] {
   if (role === "admin") {
     return [
-      {
-        label: "Visão geral",
-        icon: "home",
-        href: "/dashboard",
-        active: true,
-      },
-      {
-        label: "Usuários",
-        icon: "users",
-        href: "/admin/usuarios",
-      },
-      {
-        label: "Professores",
-        icon: "users",
-        href: "/admin/professores",
-      },
-      {
-        label: "Aulas",
-        icon: "video",
-      },
-      {
-        label: "Calendário",
-        icon: "calendar",
-        href: "/agenda",
-      },
-      {
-        label: "Presenças",
-        icon: "check",
-      },
-      {
-        label: "Cobranças",
-        icon: "money",
-      },
-      {
-        label: "Comunicações",
-        icon: "chat",
-      },
-      {
-        label: "Configurações",
-        icon: "settings",
-      },
+      { label: "Visão geral", icon: "home", href: "/dashboard", active: true },
+      { label: "Usuários", icon: "users", href: "/admin/usuarios" },
+      { label: "Professores", icon: "users", href: "/admin/professores" },
+      { label: "Aulas", icon: "video", href: "/admin/aulas" },
+      { label: "Calendário", icon: "calendar", href: "/agenda" },
+      { label: "Presenças", icon: "check", href: "/admin/presencas" },
+      { label: "Cobranças", icon: "money", href: "/admin/cobrancas" },
+      { label: "Comunicações", icon: "chat", href: "/admin/comunicacoes" },
+      { label: "Configurações", icon: "settings", href: "/admin/configuracoes" },
     ];
   }
 
   if (role === "teacher") {
     return [
-      {
-        label: "Visão geral",
-        icon: "home",
-        href: "/dashboard",
-        active: true,
-      },
-      {
-        label: "Minhas turmas",
-        icon: "users",
-      },
-      {
-        label: "Aulas ao vivo",
-        icon: "video",
-      },
-      {
-        label: "Gravações",
-        icon: "book",
-      },
-      {
-        label: "Calendário",
-        icon: "calendar",
-        href: "/agenda",
-      },
-      {
-        label: "Presenças",
-        icon: "check",
-      },
-      {
-        label: "Comunicações",
-        icon: "chat",
-      },
-      {
-        label: "Materiais",
-        icon: "layers",
-      },
+      { label: "Visão geral", icon: "home", href: "/dashboard", active: true },
+      { label: "Minhas aulas", icon: "video", href: "/aulas/minhas" },
+      { label: "Calendário", icon: "calendar", href: "/agenda" },
     ];
   }
 
   return [
-    {
-      label: "Visão geral",
-      icon: "home",
-      href: "/dashboard",
-      active: true,
-    },
-    {
-      label: "Aulas ao vivo",
-      icon: "video",
-    },
-    {
-      label: "Gravações",
-      icon: "book",
-    },
-    {
-      label: "Calendário",
-      icon: "calendar",
-        href: "/agenda",
-    },
-    {
-      label: "Presenças",
-      icon: "check",
-    },
-    {
-      label: "Cobranças",
-      icon: "money",
-    },
-    {
-      label: "Comunicações",
-      icon: "chat",
-    },
-    {
-      label: "Materiais",
-      icon: "layers",
-    },
+    { label: "Visão geral", icon: "home", href: "/dashboard", active: true },
+    { label: "Minhas aulas", icon: "video", href: "/aulas/minhas" },
+    { label: "Reservar aula", icon: "plus", href: "/aulas/reservar" },
+    { label: "Calendário", icon: "calendar", href: "/agenda" },
   ];
 }
 
@@ -328,6 +235,33 @@ export default async function DashboardPage() {
   }
 
   const isAdmin = profile.role === "admin";
+  const isTeacher = profile.role === "teacher";
+
+  const teacherBookingsResult = isTeacher
+    ? await supabase
+        .from("lesson_bookings")
+        .select("id,student_name,subject,grade_level,starts_at,ends_at,status")
+        .eq("teacher_id", user.id)
+        .order("starts_at", { ascending: true })
+        .limit(200)
+    : { data: [] as Array<{ id: string; student_name: string; subject: string; grade_level: string | null; starts_at: string; ends_at: string; status: string }> };
+
+  const teacherAvailabilityResult = isTeacher
+    ? await supabase
+        .from("availability_slots")
+        .select("id", { count: "exact", head: true })
+        .eq("teacher_id", user.id)
+        .eq("status", "available")
+        .gte("starts_at", new Date().toISOString())
+    : { count: 0 };
+
+  const { data: notificationRows } = await supabase
+    .from("notifications")
+    .select("id,title,message,href,created_at,read_at")
+    .eq("recipient_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  const notifications = (notificationRows || []) as PlatformNotification[];
 
   const [lessonsResult, enrollmentsResult, teachersResult, studentsResult] = isAdmin
     ? await Promise.all([
@@ -356,6 +290,33 @@ export default async function DashboardPage() {
     .toUpperCase();
 
   const navigation = getNavigation(profile.role);
+
+  const teacherBookings = teacherBookingsResult.data || [];
+  const now = new Date();
+  const weekAhead = new Date(now);
+  weekAhead.setDate(weekAhead.getDate() + 7);
+  const upcomingTeacherLessons = teacherBookings
+    .filter((booking) => booking.status === "scheduled" && new Date(booking.starts_at) >= now)
+    .slice(0, 4);
+  const nextTeacherLesson = upcomingTeacherLessons[0] || null;
+  const teacherWeekCount = teacherBookings.filter((booking) => {
+    const startsAt = new Date(booking.starts_at);
+    return booking.status === "scheduled" && startsAt >= now && startsAt <= weekAhead;
+  }).length;
+  const teacherCompletedCount = teacherBookings.filter((booking) => booking.status === "completed").length;
+  const teacherNoShowCount = teacherBookings.filter((booking) => booking.status === "no_show").length;
+  const formatShortDate = (value: string) => new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(value));
+  const formatTime = (value: string) => new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(value));
 
   return (
     <div className="ec-shell">
@@ -421,6 +382,8 @@ export default async function DashboardPage() {
           <span className="ec-support-link">Falar com suporte</span>
         </section>
 
+        <SignOutButton />
+
         <div className="ec-profile">
           <div className="ec-avatar">{initials}</div>
 
@@ -460,7 +423,7 @@ export default async function DashboardPage() {
             />
           </label>
 
-          <div className="ec-identity">
+          <Link href="/dashboard" className="ec-identity ec-identity-link" title="Visão geral">
             <span>🔒</span>
 
             <div className="ec-identity-copy">
@@ -470,14 +433,14 @@ export default async function DashboardPage() {
 
               <small>{profile.email}</small>
             </div>
-          </div>
+          </Link>
 
-          <div className="ec-notification" aria-label="Notificações">
-            <Icon name="bell" size={19} />
-          </div>
+          <NotificationBell initialNotifications={notifications} />
         </header>
 
         <div className="ec-content ec-content-premium">
+          {profile.role === "student" && <Link href="/professor/cadastro" className="mb-5 inline-block rounded-xl border border-blue-200 bg-white px-5 py-3 text-sm font-semibold text-[#173b73]">Quero ser professor — solicitar cadastro →</Link>}
+
           {isAdmin ? (
             <>
               <section className="premium-dashboard-hero">
@@ -526,12 +489,74 @@ export default async function DashboardPage() {
                 </article>
               </section>
             </>
+          ) : isTeacher ? (
+            <>
+              <section className="teacher-premium-hero">
+                <div className="teacher-premium-copy">
+                  <p className="ec-eyebrow">{currentDate}</p>
+                  <span className="teacher-premium-label">AMBIENTE DO PROFESSOR</span>
+                  <h1>Olá, {firstName}!</h1>
+                  <p>Acompanhe suas próximas aulas, disponibilidades e resultados em um único lugar.</p>
+                  <div className="teacher-premium-actions">
+                    <Link href="/agenda" className="premium-primary-action"><Icon name="calendar" size={18} /> Ver calendário</Link>
+                    <Link href="/aulas/minhas" className="premium-secondary-action"><Icon name="video" size={18} /> Minhas aulas</Link>
+                  </div>
+                </div>
+                <div className="teacher-next-card">
+                  <span className="teacher-next-kicker">PRÓXIMA AULA</span>
+                  {nextTeacherLesson ? (
+                    <>
+                      <strong>{nextTeacherLesson.subject}{nextTeacherLesson.grade_level ? ` · ${nextTeacherLesson.grade_level}` : ""}</strong>
+                      <b>{formatShortDate(nextTeacherLesson.starts_at)}</b>
+                      <small>Aluno: {nextTeacherLesson.student_name}</small>
+                    </>
+                  ) : (
+                    <>
+                      <strong>Nenhuma aula futura agendada</strong>
+                      <small>Crie novos horários no calendário para receber reservas.</small>
+                    </>
+                  )}
+                </div>
+              </section>
+
+              <section className="teacher-metrics-grid">
+                <article className="teacher-metric-card"><span><Icon name="calendar" /></span><div><strong>{teacherWeekCount}</strong><small>Aulas nos próximos 7 dias</small></div></article>
+                <article className="teacher-metric-card"><span><Icon name="plus" /></span><div><strong>{teacherAvailabilityResult.count || 0}</strong><small>Horários disponíveis</small></div></article>
+                <article className="teacher-metric-card"><span><Icon name="check" /></span><div><strong>{teacherCompletedCount}</strong><small>Aulas realizadas</small></div></article>
+                <article className="teacher-metric-card"><span><Icon name="users" /></span><div><strong>{teacherNoShowCount}</strong><small>Ausências registradas</small></div></article>
+              </section>
+
+              <section className="teacher-dashboard-grid">
+                <article className="teacher-lessons-panel">
+                  <div className="teacher-panel-head">
+                    <div><span>AGENDA</span><h2>Próximas aulas</h2><p>Reservas confirmadas vinculadas ao seu perfil.</p></div>
+                    <Link href="/aulas/minhas">Ver todas →</Link>
+                  </div>
+                  <div className="teacher-lessons-list">
+                    {upcomingTeacherLessons.length ? upcomingTeacherLessons.map((booking) => (
+                      <Link href="/aulas/minhas" key={booking.id} className="teacher-lesson-row">
+                        <div className="teacher-date-box"><strong>{new Intl.DateTimeFormat("pt-BR", { day: "2-digit", timeZone: "America/Sao_Paulo" }).format(new Date(booking.starts_at))}</strong><span>{new Intl.DateTimeFormat("pt-BR", { month: "short", timeZone: "America/Sao_Paulo" }).format(new Date(booking.starts_at)).replace(".", "")}</span></div>
+                        <div className="teacher-lesson-copy"><strong>{booking.subject}{booking.grade_level ? ` · ${booking.grade_level}` : ""}</strong><span>{formatTime(booking.starts_at)}–{formatTime(booking.ends_at)} · Aluno: {booking.student_name}</span></div>
+                        <span className="teacher-status-pill">Agendada</span>
+                        <b>→</b>
+                      </Link>
+                    )) : <div className="teacher-empty-state">Nenhuma aula futura agendada no momento.</div>}
+                  </div>
+                </article>
+
+                <article className="teacher-actions-panel">
+                  <div className="teacher-panel-head"><div><span>ATALHOS</span><h2>Ações rápidas</h2></div></div>
+                  <Link href="/agenda" className="teacher-action-card"><span><Icon name="plus" /></span><div><strong>Criar disponibilidade</strong><small>Abra novos horários no calendário</small></div><b>→</b></Link>
+                  <Link href="/aulas/minhas" className="teacher-action-card"><span><Icon name="video" /></span><div><strong>Gerenciar aulas</strong><small>Consulte agendadas e realizadas</small></div><b>→</b></Link>
+                </article>
+              </section>
+            </>
           ) : (
             <section className="ec-primary-hero">
               <div className="ec-hero-copy">
-                <span className="ec-hero-label">{profile.role === "teacher" ? "AMBIENTE DO PROFESSOR" : "MEU MURAL"}</span>
-                <h2>{profile.role === "teacher" ? "Suas turmas e aulas em um só lugar" : "Sua rotina escolar organizada"}</h2>
-                <p>Este painel será preenchido automaticamente quando houver turmas, aulas e materiais vinculados ao seu perfil.</p>
+                <span className="ec-hero-label">MEU MURAL</span>
+                <h2>Sua rotina escolar organizada</h2>
+                <p>Acompanhe suas aulas, reservas e materiais vinculados ao seu perfil.</p>
               </div>
             </section>
           )}

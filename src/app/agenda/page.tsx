@@ -13,6 +13,8 @@ type PageProps = {
     error?: string;
     teacher?: string;
     subject?: string;
+    grade?: string;
+    status?: string;
   }>;
 };
 
@@ -147,7 +149,7 @@ async function getCurrentProfile() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, full_name, email, role, status, teaching_area, teaching_subjects, teaching_grade_levels, teaching_offerings")
+    .select("id, full_name, email, role, status, teaching_area, teaching_subjects, teaching_grade_levels, teaching_offerings, notification_phone")
     .eq("id", user.id)
     .single();
 
@@ -180,6 +182,19 @@ async function saveMyOfferings(formData: FormData) {
   if (error) redirect("/agenda?error=Nao%20foi%20possivel%20salvar");
   revalidatePath("/agenda");
   revalidatePath("/admin/professores");
+  redirect("/agenda?updated=1");
+}
+
+async function saveTeacherPhone(formData: FormData) {
+  "use server";
+  const { supabase, user, profile } = await getCurrentProfile();
+  if (profile.role !== "teacher") redirect("/dashboard");
+  const phone = String(formData.get("notification_phone") || "").trim();
+  if (phone.replace(/\D/g, "").length < 10 || phone.length > 30)
+    redirect("/agenda?error=Informe%20o%20WhatsApp%20com%20DDD");
+  const { error } = await supabase.from("profiles").update({notification_phone:phone}).eq("id",user.id);
+  if (error) redirect("/agenda?error=Nao%20foi%20possivel%20salvar%20WhatsApp");
+  revalidatePath("/agenda");
   redirect("/agenda?updated=1");
 }
 
@@ -305,8 +320,10 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   const canManageAvailability = isTeacher || isAdmin;
   const isStudent = profile.role === "student";
 
-  const selectedTeacherId = isAdmin ? String(params.teacher || "") : "";
-  const selectedSubject = isAdmin ? String(params.subject || "") : "";
+  const selectedTeacherId = (isAdmin || isStudent) ? String(params.teacher || "") : "";
+  const selectedSubject = (isAdmin || isStudent) ? String(params.subject || "") : "";
+  const selectedGrade = (isAdmin || isStudent) ? String(params.grade || "") : "";
+  const selectedStatus = isAdmin ? String(params.status || "") : "";
 
   let teacherProfiles: {
     id: string;
@@ -316,7 +333,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     teaching_offerings: { grade_level: string; subject: string }[] | null;
   }[] = [];
 
-  if (isAdmin) {
+  if (isAdmin || isStudent) {
     const { data: teachersData } = await supabase
       .from("profiles")
       .select("id, full_name, email, teaching_subjects, teaching_offerings")
@@ -348,16 +365,22 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     .order("starts_at");
 
   if (isTeacher) slotsQuery = slotsQuery.eq("teacher_id", profile.id);
-  if (isAdmin && selectedTeacherId) slotsQuery = slotsQuery.eq("teacher_id", selectedTeacherId);
-  if (isAdmin && selectedSubject) slotsQuery = slotsQuery.eq("subject", selectedSubject);
+  if ((isAdmin || isStudent) && selectedTeacherId) slotsQuery = slotsQuery.eq("teacher_id", selectedTeacherId);
+  if ((isAdmin || isStudent) && selectedSubject) slotsQuery = slotsQuery.eq("subject", selectedSubject);
+  if ((isAdmin || isStudent) && selectedGrade) slotsQuery = slotsQuery.eq("grade_level", selectedGrade);
+  if (isStudent) slotsQuery = slotsQuery.eq("status", "available").gt("starts_at", new Date().toISOString());
+  if (isAdmin && selectedStatus) slotsQuery = slotsQuery.eq("status", selectedStatus);
 
   const { data } = await slotsQuery;
   const slots = (data || []) as Slot[];
   const todayKey = dateKey(new Date());
-  const visibleHours = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, index) => DAY_START_HOUR + index);
-  const adminFilterQuery = isAdmin
-    ? `${selectedTeacherId ? `&teacher=${encodeURIComponent(selectedTeacherId)}` : ""}${selectedSubject ? `&subject=${encodeURIComponent(selectedSubject)}` : ""}`
+
+  const filterQuery = (isAdmin || isStudent)
+    ? `${selectedTeacherId ? `&teacher=${encodeURIComponent(selectedTeacherId)}` : ""}${selectedSubject ? `&subject=${encodeURIComponent(selectedSubject)}` : ""}${selectedGrade ? `&grade=${encodeURIComponent(selectedGrade)}` : ""}${selectedStatus ? `&status=${encodeURIComponent(selectedStatus)}` : ""}`
     : "";
+  const reservedCount = slots.filter((slot) => slot.status === "reserved" || slot.status === "booked").length;
+  const allGrades = Array.from(new Set(teachers.flatMap((teacher) => teacher.offerings.map((entry) => entry.grade_level)))).filter(Boolean).sort();
+  const statusLabel = (status: string) => status === "available" ? "Disponível" : (status === "reserved" || status === "booked") ? "Agendado" : "Indisponível";
   const weeklyTeacherCount = new Set(slots.map((slot) => slot.teacher_id)).size;
   const availableCount = slots.filter((slot) => slot.status === "available").length;
   const weeklyHours = slots.reduce((total, slot) => {
@@ -389,6 +412,12 @@ export default async function AgendaPage({ searchParams }: PageProps) {
               <OfferingsEditor teacherId={profile.id} initial={Array.isArray(profile.teaching_offerings) ? profile.teaching_offerings : []} action={saveMyOfferings} />
             </details>
           )}
+          {isTeacher && <form action={saveTeacherPhone} className="mb-3 flex flex-wrap gap-2 rounded-xl border border-blue-100 bg-white p-3">
+            <label className="flex-1 text-xs font-semibold text-slate-700">Meu WhatsApp para avisos de aula (com DDD)
+              <input name="notification_phone" type="tel" required defaultValue={profile.notification_phone || ""} placeholder="(31) 99999-9999" className="mt-1 block w-full rounded-lg border p-2 text-sm" />
+            </label>
+            <button className="self-end rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white">Salvar WhatsApp</button>
+          </form>}
           {canManageAvailability && (
             <div className="agenda-premium-cta">
               <NewAvailabilityModal
@@ -427,239 +456,101 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">{params.error}</div>
       )}
 
-      {isAdmin && (
-        <form method="get" className="premium-toolbar premium-agenda-toolbar mb-4">
+      {(isAdmin || isStudent) && (
+        <form method="get" className="mb-5 grid gap-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm sm:grid-cols-2 xl:grid-cols-4">
           <input type="hidden" name="week" value={weekOffset} />
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">Professor</span>
-            <select
-              name="teacher"
-              defaultValue={selectedTeacherId}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-            >
+          <label className="block min-w-0 text-xs font-bold text-slate-600">Professor
+            <select name="teacher" defaultValue={selectedTeacherId} className="mt-2 block w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900">
               <option value="">Todos os professores</option>
-              {teachers.map((teacher) => (
-                <option key={teacher.id} value={teacher.id}>{teacher.label}</option>
-              ))}
+              {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.label}</option>)}
             </select>
           </label>
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">Matéria</span>
-            <select
-              name="subject"
-              defaultValue={selectedSubject}
-              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-            >
+          <label className="block min-w-0 text-xs font-bold text-slate-600">Nível de ensino
+            <select name="grade" defaultValue={selectedGrade} className="mt-2 block w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900">
+              <option value="">Todos os níveis</option>
+              {allGrades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+            </select>
+          </label>
+          <label className="block min-w-0 text-xs font-bold text-slate-600">Matéria
+            <select name="subject" defaultValue={selectedSubject} className="mt-2 block w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900">
               <option value="">Todas as matérias</option>
-              {allTeacherSubjects.map((subject) => (
-                <option key={subject} value={subject}>{subject}</option>
-              ))}
+              {allTeacherSubjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
             </select>
           </label>
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-[0.08em] text-slate-500">Período</span>
-            <input readOnly value={weekTitle(days)} aria-label="Período da semana" />
-          </label>
-          <div className="flex gap-2">
-            <button type="submit" className="premium-filter-button flex-1">⌁&nbsp;&nbsp; Filtrar</button>
-            {(selectedTeacherId || selectedSubject) && (
-              <Link href={`/agenda?week=${weekOffset}`} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50">Limpar</Link>
-            )}
+          <div className="flex min-w-0 flex-col justify-end gap-2">
+            {isAdmin && <label className="block text-xs font-bold text-slate-600">Situação
+              <select name="status" defaultValue={selectedStatus} className="mt-2 block w-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900">
+                <option value="">Todas as situações</option>
+                <option value="available">Disponível</option>
+                <option value="reserved">Agendado</option>
+              </select>
+            </label>}
+            <div className="flex gap-2"><button type="submit" className="flex-1 rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white">Filtrar</button>
+              <Link href="/agenda" className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600">Limpar</Link></div>
           </div>
         </form>
       )}
 
-      <section className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)]">
-        <div className="flex flex-col gap-4 border-b border-blue-800/70 bg-gradient-to-r from-slate-950 via-blue-950 to-blue-900 px-4 py-4 text-white sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200">Visão semanal</p>
-            <h2 className="text-base font-extrabold capitalize text-white">{weekTitle(days)}</h2>
-            <p className="mt-1 text-xs text-blue-100/80">{slots.length} {slots.length === 1 ? "horário nesta semana" : "horários nesta semana"}</p>
+      <section className="overflow-hidden rounded-3xl border border-blue-100 bg-[#F7FAFF] shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-[#102C5B] to-[#1E55B8] px-5 py-5 text-white sm:px-7">
+          <div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-200">{isAdmin ? "Gestão de agendas" : isStudent ? "Encontre sua aula" : "Minha agenda"}</p>
+            <h2 className="mt-1 text-xl font-extrabold capitalize">{weekTitle(days)}</h2>
+            <p className="mt-1 text-xs text-blue-100">{slots.length} {slots.length === 1 ? "horário encontrado" : "horários encontrados"}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/agenda?week=${weekOffset - 1}${adminFilterQuery}`}
-              aria-label="Semana anterior"
-              className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20"
-            >
-              ←
-            </Link>
-            <Link
-              href={isAdmin && adminFilterQuery ? `/agenda?week=0${adminFilterQuery}` : "/agenda"}
-              className="rounded-xl border border-white/20 bg-white px-4 py-2.5 text-sm font-bold text-blue-950 shadow-sm transition hover:bg-blue-50"
-            >
-              Hoje
-            </Link>
-            <Link
-              href={`/agenda?week=${weekOffset + 1}${adminFilterQuery}`}
-              aria-label="Próxima semana"
-              className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-white transition hover:bg-white/20"
-            >
-              →
-            </Link>
-            <div className="premium-view-switch" aria-label="Visualização">
-              <span className="active">Semana</span><span title="Visualização mensal em próxima etapa">Mês</span>
-            </div>
-          </div>
+          <nav aria-label="Navegação entre semanas" className="flex items-center gap-2">
+            <Link href={`/agenda?week=${weekOffset - 1}${filterQuery}`} aria-label="Semana anterior" className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 font-bold hover:bg-white/20">←</Link>
+            <Link href={`/agenda?week=0${filterQuery}`} className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-[#173B73]">Hoje</Link>
+            <Link href={`/agenda?week=${weekOffset + 1}${filterQuery}`} aria-label="Próxima semana" className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 font-bold hover:bg-white/20">→</Link>
+          </nav>
         </div>
-
-        {/* Desktop: calendário temporal */}
-        <div className="hidden overflow-x-auto md:block">
-          <div className="min-w-[980px]">
-            <div className="grid grid-cols-[72px_repeat(7,minmax(120px,1fr))] border-b border-blue-100 bg-gradient-to-b from-blue-50/80 to-white">
-              <div className="border-r border-blue-100 bg-blue-50/40" />
-              {days.map((day, index) => {
-                const key = dateKey(day);
-                const isToday = key === todayKey;
-                const weekend = index > 4;
-                return (
-                  <div key={key} className={`border-r border-blue-100 px-2 py-3 text-center last:border-r-0 ${weekend ? "bg-slate-50/70" : ""}`}>
-                    <p className={`text-[11px] font-extrabold uppercase tracking-[0.12em] ${isToday ? "text-blue-700" : weekend ? "text-slate-500" : "text-blue-600/80"}`}>
-                      {shortDayLabel.format(day).replace(".", "")}
-                    </p>
-                    <div className={`mx-auto mt-1 grid h-9 w-9 place-items-center rounded-full text-sm font-extrabold ${isToday ? "bg-blue-600 text-white shadow-sm ring-4 ring-blue-100" : "text-slate-900"}`}>
-                      {dayNumberLabel.format(day)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="grid grid-cols-[72px_repeat(7,minmax(120px,1fr))]">
-              <div className="relative border-r border-slate-100" style={{ height: `${CALENDAR_TOP_PADDING + visibleHours.length * HOUR_HEIGHT}px` }}>
-                {visibleHours.map((hour) => (
-                  <div key={hour} className="absolute right-3 text-[11px] font-medium text-slate-400" style={{ top: `${CALENDAR_TOP_PADDING + (hour - DAY_START_HOUR) * HOUR_HEIGHT - 7}px` }}>
-                    {String(hour).padStart(2, "0")}:00
-                  </div>
-                ))}
-              </div>
-
-              {days.map((day, index) => {
-                const key = dateKey(day);
-                const daySlots = slots.filter((slot) => dateKey(new Date(slot.starts_at)) === key);
-                const isToday = key === todayKey;
-                const weekend = index > 4;
-
-                return (
-                  <div
-                    key={key}
-                    className={`relative border-r border-slate-100 last:border-r-0 ${isToday ? "bg-blue-50/30" : weekend ? "bg-slate-50/45" : "bg-white"}`}
-                    style={{ height: `${CALENDAR_TOP_PADDING + visibleHours.length * HOUR_HEIGHT}px` }}
-                  >
-                    {visibleHours.map((hour) => (
-                      <div
-                        key={hour}
-                        className="absolute inset-x-0 border-t border-slate-100"
-                        style={{ top: `${CALENDAR_TOP_PADDING + (hour - DAY_START_HOUR) * HOUR_HEIGHT}px` }}
-                      />
-                    ))}
-
-                    {daySlots.map((slot) => {
-                      const teacher = Array.isArray(slot.teacher) ? slot.teacher[0] : slot.teacher;
-                      const available = slot.status === "available";
-                      const position = slotPosition(slot);
-
-                      return (
-                        <article
-                          key={slot.id}
-                          className={`absolute left-1.5 right-1.5 z-10 overflow-hidden rounded-lg border px-2.5 py-2 shadow-sm transition hover:z-20 hover:shadow-md ${
-                            available ? "border-blue-200 bg-blue-50 text-blue-950" : "border-slate-200 bg-slate-100 text-slate-600"
-                          }`}
-                          style={position}
-                        >
-                          <p className="truncate text-[11px] font-extrabold">
-                            {timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}
-                          </p>
-                          {slot.subject && (
-                            <p className="mt-0.5 truncate text-[10px] font-extrabold text-blue-700">{slot.grade_level ? `${slot.grade_level} · ` : ""}{slot.subject}</p>
-                          )}
-                          {!isTeacher && (
-                            <p className="mt-0.5 truncate text-[10px] font-semibold opacity-80">{teacher?.full_name || teacher?.email || "Professor"}</p>
-                          )}
-                          <div className="mt-1 flex items-center justify-between gap-1">
-                            <span className="truncate text-[10px] font-bold">{currency.format(Number(slot.lesson_price))}</span>
-                            {available && canManageAvailability && (
-                              <form action={removeAvailability}>
-                                <input type="hidden" name="slot_id" value={slot.id} />
-                                <button
-                                  type="submit"
-                                  className="rounded px-1.5 py-0.5 text-[10px] font-bold text-red-600 transition hover:bg-red-50"
-                                  title="Remover horário"
-                                >
-                                  Remover
-                                </button>
-                              </form>
-                            )}
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile: agenda em lista, sem espremer sete colunas */}
-        <div className="divide-y divide-slate-100 md:hidden">
+        {(isTeacher || isAdmin) && <div className="grid gap-3 border-b border-blue-100 bg-white p-4 sm:grid-cols-3 sm:p-6">
+          <div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs font-bold text-blue-700">Disponíveis</p><p className="mt-1 text-3xl font-extrabold text-[#173B73]">{availableCount}</p></div>
+          <div className="rounded-2xl bg-amber-50 p-4"><p className="text-xs font-bold text-amber-800">Agendados</p><p className="mt-1 text-3xl font-extrabold text-amber-900">{reservedCount}</p></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold text-slate-600">Total na semana</p><p className="mt-1 text-3xl font-extrabold text-slate-900">{slots.length}</p></div>
+        </div>}
+        <div className="space-y-5 p-4 sm:p-6">
+          {slots.length === 0 && <div className="rounded-2xl border border-dashed border-blue-200 bg-white p-8 text-center text-sm text-slate-600">{isStudent ? "Não há horários disponíveis nesta semana com os filtros selecionados." : "Nenhum horário nesta semana com os filtros selecionados."}</div>}
           {days.map((day) => {
             const key = dateKey(day);
             const daySlots = slots.filter((slot) => dateKey(new Date(slot.starts_at)) === key);
-            const isToday = key === todayKey;
-
-            return (
-              <div key={key} className={isToday ? "bg-blue-50/30" : "bg-white"}>
-                <div className="flex items-center justify-between px-4 py-3">
-                  <div>
-                    <p className={`text-xs font-bold uppercase tracking-[0.08em] ${isToday ? "text-blue-600" : "text-slate-400"}`}>
-                      {isToday ? "Hoje" : shortDayLabel.format(day).replace(".", "")}
-                    </p>
-                    <p className="mt-0.5 text-sm font-extrabold capitalize text-slate-800">{fullDateLabel.format(day)}</p>
-                  </div>
-                  <span className={`grid h-9 w-9 place-items-center rounded-full text-sm font-extrabold ${isToday ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"}`}>
-                    {dayNumberLabel.format(day)}
-                  </span>
-                </div>
-
-                <div className="px-4 pb-4">
-                  {daySlots.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-slate-200 px-4 py-4 text-center text-xs font-medium text-slate-400">Nenhum horário disponível</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {daySlots.map((slot) => {
-                        const teacher = Array.isArray(slot.teacher) ? slot.teacher[0] : slot.teacher;
-                        const available = slot.status === "available";
-                        return (
-                          <article key={slot.id} className={`rounded-xl border p-3 ${available ? "border-blue-100 bg-blue-50/70" : "border-slate-200 bg-slate-50"}`}>
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-extrabold text-slate-900">
-                                  {timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}
-                                </p>
-                                {slot.subject && <p className="mt-1 text-xs font-extrabold text-blue-700">{slot.grade_level ? `${slot.grade_level} · ` : ""}{slot.subject}</p>}
-                                {!isTeacher && <p className="mt-1 truncate text-xs font-semibold text-slate-600">{teacher?.full_name || teacher?.email || "Professor"}</p>}
-                                <p className="mt-1 text-xs font-bold text-blue-700">{currency.format(Number(slot.lesson_price))}</p>
-                              </div>
-                              {available && canManageAvailability && (
-                                <form action={removeAvailability}>
-                                  <input type="hidden" name="slot_id" value={slot.id} />
-                                  <button type="submit" className="rounded-lg px-2 py-1 text-xs font-bold text-red-600 transition hover:bg-red-50">Remover</button>
-                                </form>
-                              )}
-                            </div>
-                          </article>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+            if (!daySlots.length) return null;
+            return <section key={key} className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-100 pb-2">
+                <h3 className="text-base font-extrabold capitalize text-[#173B73]">{fullDateLabel.format(day)}</h3>
+                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800">{daySlots.length} {daySlots.length === 1 ? "horário" : "horários"}</span>
               </div>
-            );
+              <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                {daySlots.map((slot) => {
+                  const teacher = Array.isArray(slot.teacher) ? slot.teacher[0] : slot.teacher;
+                  const available = slot.status === "available";
+                  const reserved = slot.status === "reserved" || slot.status === "booked";
+                  const duration = Math.max(0, (new Date(slot.ends_at).getTime() - new Date(slot.starts_at).getTime()) / 60000);
+                  return <article key={slot.id} className={`min-w-0 rounded-2xl border bg-white p-5 shadow-sm ${available ? "border-blue-200" : reserved ? "border-amber-200" : "border-slate-200"}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className={`rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide ${available ? "bg-blue-100 text-blue-800" : reserved ? "bg-amber-100 text-amber-900" : "bg-slate-100 text-slate-700"}`}>{statusLabel(slot.status)}</span>
+                      <span className="text-xs font-semibold text-slate-500">{duration} min</span>
+                    </div>
+                    <p className="mt-4 text-2xl font-extrabold tracking-tight text-[#173B73]">{timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}</p>
+                    <p className="mt-2 text-sm font-bold text-blue-700">{[slot.grade_level, slot.subject].filter(Boolean).join(" · ") || "Aula particular"}</p>
+                    {!isTeacher && <p className="mt-2 text-sm text-slate-600">Professor: <span className="font-semibold text-slate-900">{teacher?.full_name || teacher?.email || "Professor"}</span></p>}
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                      <span className="text-lg font-extrabold text-[#173B73]">{currency.format(Number(slot.lesson_price))}</span>
+                      {available && isStudent && <Link href={`/aulas/reservar?slot=${slot.id}`} className="rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-800">Reservar aula →</Link>}
+                      {available && canManageAvailability && <form action={removeAvailability}>
+                        <input type="hidden" name="slot_id" value={slot.id} />
+                        <button type="submit" className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-red-50 hover:text-red-700">Remover horário</button>
+                      </form>}
+                      {reserved && <Link href="/aulas/minhas" className="text-sm font-bold text-blue-700 hover:underline">Ver aulas →</Link>}
+                    </div>
+                  </article>;
+                })}
+              </div>
+            </section>;
           })}
         </div>
       </section>
 
+      <div className="mt-4"><Link href="/aulas/minhas" className="inline-block rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white">Ver aulas agendadas e realizadas →</Link></div>
       <section className="premium-metric-grid mt-5">
         <article className="premium-metric"><div className="premium-metric-icon">▣</div><div><strong>{slots.length}</strong><span>Horários na semana</span></div><small>Agenda atual</small></article>
         <article className="premium-metric"><div className="premium-metric-icon">♙</div><div><strong>{weeklyTeacherCount}</strong><span>Professores envolvidos</span></div><small>Semana selecionada</small></article>
