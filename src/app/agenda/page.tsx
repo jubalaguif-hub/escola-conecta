@@ -62,6 +62,13 @@ type LessonEvent = {
 const TIME_ZONE = "America/Sao_Paulo";
 const DAY_START_HOUR = 7;
 const DAY_END_HOUR = 24;
+const SLOT_GRACE_MINUTES = 40;
+
+function availabilityDeadline(slot: { starts_at: string; ends_at: string }) {
+  const graceEnd = new Date(new Date(slot.starts_at).getTime() + SLOT_GRACE_MINUTES * 60_000);
+  const lessonEnd = new Date(slot.ends_at);
+  return graceEnd < lessonEnd ? graceEnd : lessonEnd;
+}
 const HOUR_HEIGHT = 64;
 const CALENDAR_TOP_PADDING = 24;
 
@@ -382,15 +389,19 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   if ((isAdmin || isStudent) && selectedTeacherId) slotsQuery = slotsQuery.eq("teacher_id", selectedTeacherId);
   if ((isAdmin || isStudent) && selectedSubject) slotsQuery = slotsQuery.eq("subject", selectedSubject);
   if ((isAdmin || isStudent) && selectedGrade) slotsQuery = slotsQuery.eq("grade_level", selectedGrade);
-  if (isStudent) slotsQuery = slotsQuery.eq("status", "available").gt("starts_at", new Date().toISOString());
+  if (isStudent) {
+    const graceFloor = new Date(Date.now() - SLOT_GRACE_MINUTES * 60_000).toISOString();
+    slotsQuery = slotsQuery.eq("status", "available").gte("starts_at", graceFloor).gt("ends_at", new Date().toISOString());
+  }
   if (isAdmin && selectedStatus) slotsQuery = slotsQuery.eq("status", selectedStatus);
 
   const { data } = await slotsQuery;
   const slots = (data || []) as Slot[];
   const now = new Date();
+  const unfilledSlots = slots.filter((slot) => slot.status === "available" && availabilityDeadline(slot) < now);
   const activeSlots = slots.filter((slot) => {
-    if (slot.status === "cancelled") return false;
-    if (slot.status === "available" && new Date(slot.starts_at) <= now) return false;
+    if (slot.status === "cancelled" || slot.status === "closed") return false;
+    if (slot.status === "available" && availabilityDeadline(slot) < now) return false;
     return true;
   });
 
@@ -591,11 +602,20 @@ export default async function AgendaPage({ searchParams }: PageProps) {
             <div>
               <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-400">Histórico</p>
               <h2 className="mt-1 text-xl font-extrabold text-[#173B73]">Aulas realizadas, canceladas e remarcadas</h2>
-              <p className="mt-1 text-sm text-slate-500">O horário antigo não volta a aparecer como disponível. As alterações ficam preservadas aqui.</p>
+              <p className="mt-1 text-sm text-slate-500">Cancelamentos e remarcações liberam novamente o horário antigo enquanto ainda estiver dentro da janela de reserva. Depois do limite, horários livres aparecem como “Não reservado”.</p>
             </div>
             <Link href="/aulas/minhas" className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700">Ver histórico completo →</Link>
           </div>
           <div className="grid gap-3 p-4 sm:p-6 lg:grid-cols-2">
+            {unfilledSlots.map((slot) => (
+              <article key={`unfilled-${slot.id}`} className="rounded-2xl border border-slate-200 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div><p className="font-extrabold text-[#173B73]">{[slot.grade_level, slot.subject].filter(Boolean).join(" · ")}</p><p className="mt-1 text-sm text-slate-500">Horário oferecido na agenda</p></div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-extrabold uppercase text-slate-700">Não reservado</span>
+                </div>
+                <p className="mt-3 text-sm font-semibold text-slate-700">{fullDateLabel.format(new Date(slot.starts_at))} · {timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}</p>
+              </article>
+            ))}
             {lessonHistory.map((event) => {
               const labels: Record<string, string> = { completed: "Realizada", cancelled: "Cancelada", rescheduled: "Remarcada", no_show: "Aluno ausente", teacher_no_show: "Professor ausente" };
               const classes: Record<string, string> = { completed: "bg-emerald-50 text-emerald-800", cancelled: "bg-rose-50 text-rose-800", rescheduled: "bg-indigo-50 text-indigo-800", no_show: "bg-amber-50 text-amber-800", teacher_no_show: "bg-orange-50 text-orange-800" };
@@ -609,7 +629,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                 {event.outcome_notes && <p className="mt-2 text-xs text-slate-500">{event.outcome_notes}</p>}
               </article>;
             })}
-            {!lessonHistory.length && <div className="lg:col-span-2 rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">Ainda não há eventos no histórico. Os próximos resultados, cancelamentos e remarcações serão registrados aqui.</div>}
+            {!lessonHistory.length && !unfilledSlots.length && <div className="lg:col-span-2 rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">Ainda não há eventos no histórico. Os próximos resultados, cancelamentos, remarcações e horários não reservados serão registrados aqui.</div>}
           </div>
         </section>
       )}

@@ -168,7 +168,6 @@ function getNavigation(role: string): NavItem[] {
     return [
       { label: "Visão geral", icon: "home", href: "/dashboard", active: true },
       { label: "Minhas aulas", icon: "video", href: "/aulas/minhas" },
-      { label: "Meu ensino", icon: "book", href: "/professor/ensino" },
       { label: "Calendário", icon: "calendar", href: "/agenda" },
     ];
   }
@@ -247,13 +246,17 @@ export default async function DashboardPage() {
         .limit(200)
     : { data: [] as Array<{ id: string; student_name: string; subject: string; grade_level: string | null; starts_at: string; ends_at: string; status: string }> };
 
+  const availabilityGraceFloor = new Date(Date.now() - 40 * 60_000).toISOString();
+  const availabilityNow = new Date().toISOString();
+
   const teacherAvailabilityResult = isTeacher
     ? await supabase
         .from("availability_slots")
         .select("id", { count: "exact", head: true })
         .eq("teacher_id", user.id)
         .eq("status", "available")
-        .gte("starts_at", new Date().toISOString())
+        .gte("starts_at", availabilityGraceFloor)
+        .gt("ends_at", availabilityNow)
     : { count: 0 };
 
   const { data: notificationRows } = await supabase
@@ -549,7 +552,6 @@ export default async function DashboardPage() {
                   <div className="teacher-panel-head"><div><span>ATALHOS</span><h2>Ações rápidas</h2></div></div>
                   <Link href="/agenda" className="teacher-action-card"><span><Icon name="plus" /></span><div><strong>Criar disponibilidade</strong><small>Abra novos horários no calendário</small></div><b>→</b></Link>
                   <Link href="/aulas/minhas" className="teacher-action-card"><span><Icon name="video" /></span><div><strong>Gerenciar aulas</strong><small>Consulte agendadas e realizadas</small></div><b>→</b></Link>
-                  <Link href="/professor/ensino" className="teacher-action-card"><span><Icon name="book" /></span><div><strong>Meu ensino</strong><small>Edite área, níveis e matérias</small></div><b>→</b></Link>
                 </article>
               </section>
             </>
