@@ -6,7 +6,7 @@ import { processLessonNotifications } from "@/lib/lesson-notifications";
 
 type Props = { searchParams: Promise<{ reserved?: string; updated?: string; meeting?: string; rescheduled?: string; cancelled?: string; requested?: string; reviewed?: string; error?: string }> };
 const displayDate = new Intl.DateTimeFormat("pt-BR", {dateStyle:"medium",timeStyle:"short",timeZone:"America/Sao_Paulo"});
-const names: Record<string,string> = { scheduled:"Agendada",completed:"Realizada",no_show:"Aluno ausente",cancelled:"Cancelada" };
+const names: Record<string,string> = { scheduled:"Agendada",completed:"Realizada",no_show:"Aluno ausente",teacher_no_show:"Professor ausente",cancelled:"Cancelada" };
 
 function parseSaoPauloDateTime(date: string, time: string) {
   if (!date || !time) return null;
@@ -202,7 +202,7 @@ export default async function MyLessons({searchParams}: Props) {
             <form action={cancelLesson} className="rounded-xl border border-slate-200 bg-white p-3"><input type="hidden" name="booking_id" value={b.id}/><p className="text-sm font-bold text-slate-700">Cancelar aula</p><input name="cancel_reason" maxLength={500} placeholder="Motivo do cancelamento (opcional)" className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"/><button className="mt-2 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700">Cancelar aula</button></form>
           </div></div>}
 
-          <div className="mt-5 border-t border-blue-100 pt-4"><p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Resultado da aula</p>{canFinish ? <form action={finish} className="mt-3"><input type="hidden" name="booking_id" value={b.id}/><textarea name="notes" maxLength={1000} placeholder="Observações opcionais" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"/><div className="mt-2 grid grid-cols-2 gap-2"><button name="status" value="completed" className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white">Compareceu / Aula realizada</button><button name="status" value="no_show" className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white">Não compareceu / Ausência</button></div></form> : <p className="mt-2 text-sm text-slate-500">O registro de presença será liberado quando chegar o horário da aula.</p>}</div>
+          <div className="mt-5 border-t border-blue-100 pt-4"><p className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Resultado da aula</p>{canFinish ? <form action={finish} className="mt-3"><input type="hidden" name="booking_id" value={b.id}/><textarea name="notes" maxLength={1000} placeholder="Observações opcionais" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"/><div className="mt-2 grid gap-2 md:grid-cols-3"><button name="status" value="completed" className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white">Aula realizada</button><button name="status" value="no_show" className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white">Aluno ausente</button><button name="status" value="teacher_no_show" className="rounded-lg bg-rose-700 px-3 py-2 text-sm font-bold text-white">Professor ausente</button></div></form> : <p className="mt-2 text-sm text-slate-500">O registro de presença será liberado quando chegar o horário da aula.</p>}</div>
         </details>}
       </article>;
     })}</div>

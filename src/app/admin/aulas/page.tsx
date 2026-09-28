@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 const statusNames: Record<string, string> = {
   scheduled: "Agendada",
   completed: "Realizada",
-  no_show: "Ausência",
+  no_show: "Aluno ausente",
+  teacher_no_show: "Professor ausente",
   cancelled: "Cancelada",
 };
 
@@ -13,6 +14,7 @@ const statusClasses: Record<string, string> = {
   scheduled: "bg-blue-50 text-blue-700 border-blue-100",
   completed: "bg-emerald-50 text-emerald-700 border-emerald-100",
   no_show: "bg-amber-50 text-amber-800 border-amber-100",
+  teacher_no_show: "bg-rose-50 text-rose-800 border-rose-100",
   cancelled: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
@@ -282,7 +284,7 @@ export default async function AdminAulas({ searchParams }: { searchParams: Promi
                             <button className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700">Cancelar aula</button>
                           </form>
                         </div>}
-                        {canFinish && <form action={finishLesson} className="space-y-2 border-t border-slate-200 pt-3"><input type="hidden" name="booking_id" value={b.id}/><textarea name="notes" maxLength={1000} placeholder="Observações opcionais" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"/><div className="grid grid-cols-2 gap-2"><button name="status" value="completed" className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white">Realizada</button><button name="status" value="no_show" className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white">Ausência</button></div></form>}
+                        {canFinish && <form action={finishLesson} className="space-y-2 border-t border-slate-200 pt-3"><input type="hidden" name="booking_id" value={b.id}/><textarea name="notes" maxLength={1000} placeholder="Observações opcionais" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"/><div className="grid gap-2"><button name="status" value="completed" className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white">Realizada</button><button name="status" value="no_show" className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white">Aluno ausente</button><button name="status" value="teacher_no_show" className="rounded-lg bg-rose-700 px-3 py-2 text-xs font-bold text-white">Professor ausente</button></div></form>}
                       </div>
                     </details>
                   </td>
