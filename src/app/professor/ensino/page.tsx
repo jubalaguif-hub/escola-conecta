@@ -43,12 +43,12 @@ async function saveMyTeaching(formData: FormData) {
     return [`${record.grade_level}::${record.subject.toLowerCase()}`, record] as const;
   })).values());
 
-  const { error } = await supabase.from("profiles").update({
-    teaching_area: teachingArea || null,
-    teaching_offerings: clean,
-    teaching_grade_levels: [...new Set(clean.map((item) => item.grade_level))],
-    teaching_subjects: [...new Set(clean.map((item) => item.subject))],
-  }).eq("id", user.id).eq("role", "teacher");
+  const { error } = await supabase.rpc("update_my_teaching_offerings", {
+    p_teaching_area: teachingArea,
+    p_offerings: clean,
+    p_grade_levels: [...new Set(clean.map((item) => item.grade_level))],
+    p_subjects: [...new Set(clean.map((item) => item.subject))],
+  });
 
   if (error) redirect("/professor/ensino?error=Nao%20foi%20possivel%20salvar");
 

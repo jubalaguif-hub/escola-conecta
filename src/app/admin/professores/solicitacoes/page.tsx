@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import PendingSubmitButton from "@/components/pending-submit-button";
 async function review(formData:FormData){
  "use server";
  const supabase=await createClient();const {data:{user}}=await supabase.auth.getUser();
@@ -27,5 +28,5 @@ export default async function Approvals({searchParams}:{searchParams:Promise<{er
  <div className="grid gap-5">{requests?.map(t=><article key={t.id} className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold text-[#173b73]">{t.full_name||t.email}</h2><p className="text-sm text-slate-500">{t.email} • {t.notification_phone||'WhatsApp não informado'}</p>
  <dl className="mt-4 grid gap-2 text-sm"><div><dt className="font-semibold">Formação</dt><dd>{t.teacher_education||'Não informada'}</dd></div><div><dt className="font-semibold">Experiência</dt><dd>{t.teacher_experience||'Não informada'}</dd></div><div><dt className="font-semibold">Apresentação</dt><dd>{t.teacher_bio||'Não informada'}</dd></div><div><dt className="font-semibold">Níveis e matérias</dt><dd>{Array.isArray(t.teaching_offerings)?t.teaching_offerings.map((o:{grade_level:string;subject:string})=>`${o.grade_level}: ${o.subject}`).join(' • '):''}</dd></div></dl>
  {t.teacher_photo_url&&<a href={t.teacher_photo_url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-sm text-blue-700 underline">Ver foto informada</a>}
- <div className="mt-5 flex flex-wrap gap-3"><form action={review}><input type="hidden" name="teacher_id" value={t.id}/><input type="hidden" name="decision" value="approve"/><button className="rounded-xl bg-green-700 px-5 py-3 font-semibold text-white">Aprovar</button></form><form action={review}><input type="hidden" name="teacher_id" value={t.id}/><input type="hidden" name="decision" value="reject"/><button className="rounded-xl border border-red-300 px-5 py-3 font-semibold text-red-700">Rejeitar</button></form></div></article>)}</div></main>;
+ <div className="mt-5 flex flex-wrap gap-3"><form action={review}><input type="hidden" name="teacher_id" value={t.id}/><input type="hidden" name="decision" value="approve"/><PendingSubmitButton pendingLabel="Aprovando..." className="rounded-xl bg-green-700 px-5 py-3 font-semibold text-white">Aprovar</PendingSubmitButton></form><form action={review}><input type="hidden" name="teacher_id" value={t.id}/><input type="hidden" name="decision" value="reject"/><PendingSubmitButton pendingLabel="Registrando..." className="rounded-xl border border-red-300 px-5 py-3 font-semibold text-red-700">Rejeitar</PendingSubmitButton></form></div></article>)}</div></main>;
 }

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { processLessonNotifications } from "@/lib/lesson-notifications";
+import PendingSubmitButton from "@/components/pending-submit-button";
 
 type Props = { searchParams: Promise<{ slot?: string; error?: string }> };
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "full", timeStyle: "short", timeZone: "America/Sao_Paulo" });
@@ -90,7 +91,7 @@ export default async function ReservePage({ searchParams }: Props) {
         <label className="flex gap-3 text-sm leading-6"><input required type="checkbox" name="consent" className="mt-1"/>
           Autorizo receber informações sobre meus agendamentos por e-mail e WhatsApp. Meu telefone será compartilhado com o professor responsável e a administração para organizar esta aula.
         </label>
-        <button className="rounded-xl bg-[#2563eb] px-5 py-4 font-bold text-white hover:bg-[#173B73]">Confirmar agendamento</button>
+        <PendingSubmitButton pendingLabel="Agendando..." className="rounded-xl bg-[#2563eb] px-5 py-4 font-bold text-white hover:bg-[#173B73]">Confirmar agendamento</PendingSubmitButton>
         <p className="text-xs text-slate-500">A confirmação depende da disponibilidade no momento do envio. O horário não será reservado duas vezes.</p>
       </form>
     </div>
