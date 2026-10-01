@@ -30,7 +30,8 @@ function messageFor(booking: Booking, event: string) {
     event === "rescheduled" ? "Aula remarcada" :
     event === "cancelled" ? "Aula cancelada" :
     event === "completed" ? "Aula realizada" :
-    event === "no_show" ? "Aluno ausente" : "Atualização da aula";
+    event === "no_show" ? "Aluno ausente" :
+    event === "teacher_no_show" ? "Professor ausente" : "Atualização da aula";
   return { status, when,
     text: `Escola Conecta — ${status}. Aluno: ${booking.student_name}. ${booking.subject}${booking.grade_level ? ` (${booking.grade_level})` : ""}. ${when}. Consulte a plataforma para mais detalhes.`,
   };
