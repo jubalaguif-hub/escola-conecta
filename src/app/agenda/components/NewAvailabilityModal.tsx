@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import PendingSubmitButton from "@/components/pending-submit-button";
 
 type Offering = {
   grade_level: string;
@@ -362,8 +363,9 @@ export default function NewAvailabilityModal({
               Cancelar
             </button>
 
-            <button
+            <PendingSubmitButton
               type="submit"
+              pendingLabel="Disponibilizando..."
               disabled={
                 !gradeLevel ||
                 availableSubjects.length === 0 ||
@@ -372,7 +374,7 @@ export default function NewAvailabilityModal({
               className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
               Disponibilizar horário
-            </button>
+            </PendingSubmitButton>
           </div>
         </form>
       </div>

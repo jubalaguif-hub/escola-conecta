@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Offering } from "@/app/admin/professores/OfferingsEditor";
+import PendingSubmitButton from "@/components/pending-submit-button";
 
 const LEVELS = ["Fundamental I", "Fundamental II", "Ensino Médio", "Ensino Superior"];
 
@@ -64,7 +65,7 @@ export default function TeachingEditor({ initialArea, initialOfferings, action }
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" onClick={() => setRows((old) => [...old, { grade_level: "", subject: "" }])} className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800">+ Adicionar combinação</button>
-          <button type="submit" className="rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow-sm">Salvar meu ensino</button>
+          <PendingSubmitButton type="submit" pendingLabel="Salvando..." className="rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow-sm">Salvar meu ensino</PendingSubmitButton>
         </div>
       </div>
     </form>

@@ -26,13 +26,12 @@ export default function RoleNavigation({ role }: { role: string }) {
         { label: "Visão geral", icon: "home", href: "/dashboard" },
         { label: "Minhas aulas", icon: "video", href: "/aulas/minhas" },
         { label: "Reservar aula", icon: "plus", href: "/agenda" },
-        { label: "Calendário", icon: "calendar", href: "/agenda" },
       ]
     : [
         { label: "Visão geral", icon: "home", href: "/dashboard" },
         { label: "Minhas aulas", icon: "video", href: "/aulas/minhas" },
         ...(role === "teacher" ? [{ label: "Meu ensino", icon: "book" as IconName, href: "/professor/ensino" }] : []),
-        { label: "Calendário", icon: "calendar", href: "/agenda" },
+        { label: "Minha agenda", icon: "calendar", href: "/agenda" },
       ];
 
   return (

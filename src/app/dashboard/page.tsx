@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import NotificationBell, { type PlatformNotification } from "@/components/notification-bell";
 import SignOutButton from "@/components/sign-out-button";
+import AdminNavigation from "@/components/admin-navigation";
+import RoleNavigation from "@/components/role-navigation";
 
 type IconName =
   | "home"
@@ -341,38 +343,7 @@ export default async function DashboardPage() {
 
         <p className="ec-nav-label">PLATAFORMA EDUCACIONAL</p>
 
-        <nav className="ec-navigation" aria-label="Navegação principal">
-          {navigation.map((item) =>
-            item.href ? (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`ec-nav-item ${
-                  item.active ? "ec-nav-item-active" : ""
-                }`}
-              >
-                <span className="ec-nav-icon">
-                  <Icon name={item.icon} />
-                </span>
-
-                <span>{item.label}</span>
-              </Link>
-            ) : (
-              <div
-                key={item.label}
-                className="ec-nav-item"
-                aria-disabled="true"
-                title="Este módulo será conectado nas próximas etapas"
-              >
-                <span className="ec-nav-icon">
-                  <Icon name={item.icon} />
-                </span>
-
-                <span>{item.label}</span>
-              </div>
-            )
-          )}
-        </nav>
+        {isAdmin ? <AdminNavigation /> : <RoleNavigation role={profile.role} />}
 
         <section className="ec-support">
           <div className="ec-support-icon">

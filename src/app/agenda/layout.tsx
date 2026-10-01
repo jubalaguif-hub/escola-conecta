@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AdminNavigation from "@/components/admin-navigation";
+import RoleNavigation from "@/components/role-navigation";
 import NotificationBell, { type PlatformNotification } from "@/components/notification-bell";
 import SignOutButton from "@/components/sign-out-button";
 
@@ -50,16 +51,7 @@ export default async function AgendaLayout({ children }: { children: ReactNode }
 
         <p className="ec-nav-label">PLATAFORMA EDUCACIONAL</p>
 
-        {isAdmin ? (
-          <AdminNavigation />
-        ) : (
-          <nav className="ec-navigation" aria-label="Navegação principal">
-            <Link href="/dashboard" className="ec-nav-item"><span className="ec-nav-icon">⌂</span><span>Visão geral</span></Link>
-            <Link href="/aulas/minhas" className="ec-nav-item"><span className="ec-nav-icon">▣</span><span>Minhas aulas</span></Link>
-            {profile.role === "student" && <Link href="/aulas/reservar" className="ec-nav-item"><span className="ec-nav-icon">＋</span><span>Reservar aula</span></Link>}
-            <Link href="/agenda" className="ec-nav-item ec-nav-item-active"><span className="ec-nav-icon">◷</span><span>Calendário</span></Link>
-          </nav>
-        )}
+{isAdmin ? <AdminNavigation /> : <RoleNavigation role={profile.role} />}
 
         <section className="ec-support premium-support">
           <div className="ec-support-icon"><Icon name="chat" /></div>
