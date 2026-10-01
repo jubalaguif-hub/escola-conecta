@@ -3,10 +3,18 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { processLessonNotifications } from "@/lib/lesson-notifications";
+import PendingSubmitButton from "@/components/pending-submit-button";
 
 type Props = { searchParams: Promise<{ slot?: string; error?: string }> };
 const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "full", timeStyle: "short", timeZone: "America/Sao_Paulo" });
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const SLOT_GRACE_MINUTES = 40;
+
+function availabilityDeadline(startsAt: string, endsAt: string) {
+  const graceEnd = new Date(new Date(startsAt).getTime() + SLOT_GRACE_MINUTES * 60_000);
+  const lessonEnd = new Date(endsAt);
+  return graceEnd < lessonEnd ? graceEnd : lessonEnd;
+}
 
 async function reserve(formData: FormData) {
   "use server";
@@ -45,7 +53,7 @@ export default async function ReservePage({ searchParams }: Props) {
   const { data: slot } = await supabase.from("availability_slots")
     .select("id,teacher_id,subject,grade_level,starts_at,ends_at,status,lesson_price,teacher:profiles!availability_slots_teacher_id_fkey(full_name)")
     .eq("id", slotId).maybeSingle();
-  if (!slot || slot.status !== "available" || new Date(slot.starts_at) <= new Date()) {
+  if (!slot || slot.status !== "available" || availabilityDeadline(slot.starts_at, slot.ends_at) < new Date()) {
     return <main className="mx-auto max-w-xl p-8"><h1 className="text-2xl font-bold">Horário indisponível</h1><p className="my-4">Esta aula já foi reservada ou o prazo passou.</p><Link href="/agenda" className="text-blue-700 underline">Escolher outro horário</Link></main>;
   }
   const teacher = Array.isArray(slot.teacher) ? slot.teacher[0] : slot.teacher;
@@ -62,6 +70,7 @@ export default async function ReservePage({ searchParams }: Props) {
         <p><b>Nível:</b> {slot.grade_level || "Não informado"}</p>
         <p><b>Início:</b> {dateTime.format(new Date(slot.starts_at))}</p>
         <p><b>Fim:</b> {dateTime.format(new Date(slot.ends_at))}</p>
+        <p><b>Reserva permitida até:</b> {dateTime.format(availabilityDeadline(slot.starts_at, slot.ends_at))}</p>
         <p><b>Valor informado:</b> {money.format(Number(slot.lesson_price))}</p>
       </div>
       {error && <p role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
@@ -82,7 +91,7 @@ export default async function ReservePage({ searchParams }: Props) {
         <label className="flex gap-3 text-sm leading-6"><input required type="checkbox" name="consent" className="mt-1"/>
           Autorizo receber informações sobre meus agendamentos por e-mail e WhatsApp. Meu telefone será compartilhado com o professor responsável e a administração para organizar esta aula.
         </label>
-        <button className="rounded-xl bg-[#2563eb] px-5 py-4 font-bold text-white hover:bg-[#173B73]">Confirmar agendamento</button>
+        <PendingSubmitButton pendingLabel="Agendando..." className="rounded-xl bg-[#2563eb] px-5 py-4 font-bold text-white hover:bg-[#173B73]">Confirmar agendamento</PendingSubmitButton>
         <p className="text-xs text-slate-500">A confirmação depende da disponibilidade no momento do envio. O horário não será reservado duas vezes.</p>
       </form>
     </div>

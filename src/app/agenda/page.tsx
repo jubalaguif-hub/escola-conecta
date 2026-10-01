@@ -45,9 +45,30 @@ type Slot = {
     | null;
 };
 
+type LessonEvent = {
+  id: string;
+  booking_id: string;
+  event_type: "rescheduled" | "cancelled" | "completed" | "no_show" | "teacher_no_show";
+  subject: string;
+  grade_level: string | null;
+  student_name: string;
+  original_starts_at: string | null;
+  starts_at: string;
+  ends_at: string;
+  outcome_notes: string | null;
+  created_at: string;
+};
+
 const TIME_ZONE = "America/Sao_Paulo";
 const DAY_START_HOUR = 7;
 const DAY_END_HOUR = 24;
+const SLOT_GRACE_MINUTES = 40;
+
+function availabilityDeadline(slot: { starts_at: string; ends_at: string }) {
+  const graceEnd = new Date(new Date(slot.starts_at).getTime() + SLOT_GRACE_MINUTES * 60_000);
+  const lessonEnd = new Date(slot.ends_at);
+  return graceEnd < lessonEnd ? graceEnd : lessonEnd;
+}
 const HOUR_HEIGHT = 64;
 const CALENDAR_TOP_PADDING = 24;
 
@@ -368,22 +389,46 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   if ((isAdmin || isStudent) && selectedTeacherId) slotsQuery = slotsQuery.eq("teacher_id", selectedTeacherId);
   if ((isAdmin || isStudent) && selectedSubject) slotsQuery = slotsQuery.eq("subject", selectedSubject);
   if ((isAdmin || isStudent) && selectedGrade) slotsQuery = slotsQuery.eq("grade_level", selectedGrade);
-  if (isStudent) slotsQuery = slotsQuery.eq("status", "available").gt("starts_at", new Date().toISOString());
+  if (isStudent) {
+    const graceFloor = new Date(Date.now() - SLOT_GRACE_MINUTES * 60_000).toISOString();
+    slotsQuery = slotsQuery.eq("status", "available").gte("starts_at", graceFloor).gt("ends_at", new Date().toISOString());
+  }
   if (isAdmin && selectedStatus) slotsQuery = slotsQuery.eq("status", selectedStatus);
 
   const { data } = await slotsQuery;
   const slots = (data || []) as Slot[];
-  const todayKey = dateKey(new Date());
+  const now = new Date();
+  const unfilledSlots = slots.filter((slot) => slot.status === "available" && availabilityDeadline(slot) < now);
+  const activeSlots = slots.filter((slot) => {
+    if (slot.status === "cancelled" || slot.status === "closed") return false;
+    if (slot.status === "available" && availabilityDeadline(slot) < now) return false;
+    return true;
+  });
+
+  let lessonHistory: LessonEvent[] = [];
+  if (isTeacher || isAdmin) {
+    let historyQuery = supabase
+      .from("lesson_events")
+      .select("id,booking_id,event_type,subject,grade_level,student_name,original_starts_at,starts_at,ends_at,outcome_notes,created_at")
+      .order("created_at", { ascending: false })
+      .limit(12);
+    if (isTeacher) historyQuery = historyQuery.eq("teacher_id", profile.id);
+    if (isAdmin && selectedTeacherId) historyQuery = historyQuery.eq("teacher_id", selectedTeacherId);
+    const { data: historyData } = await historyQuery;
+    lessonHistory = (historyData || []) as LessonEvent[];
+  }
+
+  const todayKey = dateKey(now);
 
   const filterQuery = (isAdmin || isStudent)
     ? `${selectedTeacherId ? `&teacher=${encodeURIComponent(selectedTeacherId)}` : ""}${selectedSubject ? `&subject=${encodeURIComponent(selectedSubject)}` : ""}${selectedGrade ? `&grade=${encodeURIComponent(selectedGrade)}` : ""}${selectedStatus ? `&status=${encodeURIComponent(selectedStatus)}` : ""}`
     : "";
-  const reservedCount = slots.filter((slot) => slot.status === "reserved" || slot.status === "booked").length;
+  const reservedCount = activeSlots.filter((slot) => slot.status === "reserved" || slot.status === "booked").length;
   const allGrades = Array.from(new Set(teachers.flatMap((teacher) => teacher.offerings.map((entry) => entry.grade_level)))).filter(Boolean).sort();
   const statusLabel = (status: string) => status === "available" ? "Disponível" : (status === "reserved" || status === "booked") ? "Agendado" : "Indisponível";
-  const weeklyTeacherCount = new Set(slots.map((slot) => slot.teacher_id)).size;
-  const availableCount = slots.filter((slot) => slot.status === "available").length;
-  const weeklyHours = slots.reduce((total, slot) => {
+  const weeklyTeacherCount = new Set(activeSlots.map((slot) => slot.teacher_id)).size;
+  const availableCount = activeSlots.filter((slot) => slot.status === "available").length;
+  const weeklyHours = activeSlots.reduce((total, slot) => {
     const duration = new Date(slot.ends_at).getTime() - new Date(slot.starts_at).getTime();
     return total + Math.max(0, duration / 3600000);
   }, 0);
@@ -495,7 +540,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         <div className="flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-[#102C5B] to-[#1E55B8] px-5 py-5 text-white sm:px-7">
           <div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-200">{isAdmin ? "Gestão de agendas" : isStudent ? "Encontre sua aula" : "Minha agenda"}</p>
             <h2 className="mt-1 text-xl font-extrabold capitalize">{weekTitle(days)}</h2>
-            <p className="mt-1 text-xs text-blue-100">{slots.length} {slots.length === 1 ? "horário encontrado" : "horários encontrados"}</p>
+            <p className="mt-1 text-xs text-blue-100">{activeSlots.length} {activeSlots.length === 1 ? "horário encontrado" : "horários encontrados"}</p>
           </div>
           <nav aria-label="Navegação entre semanas" className="flex items-center gap-2">
             <Link href={`/agenda?week=${weekOffset - 1}${filterQuery}`} aria-label="Semana anterior" className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 font-bold hover:bg-white/20">←</Link>
@@ -506,13 +551,13 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         {(isTeacher || isAdmin) && <div className="grid gap-3 border-b border-blue-100 bg-white p-4 sm:grid-cols-3 sm:p-6">
           <div className="rounded-2xl bg-blue-50 p-4"><p className="text-xs font-bold text-blue-700">Disponíveis</p><p className="mt-1 text-3xl font-extrabold text-[#173B73]">{availableCount}</p></div>
           <div className="rounded-2xl bg-amber-50 p-4"><p className="text-xs font-bold text-amber-800">Agendados</p><p className="mt-1 text-3xl font-extrabold text-amber-900">{reservedCount}</p></div>
-          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold text-slate-600">Total na semana</p><p className="mt-1 text-3xl font-extrabold text-slate-900">{slots.length}</p></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold text-slate-600">Total na semana</p><p className="mt-1 text-3xl font-extrabold text-slate-900">{activeSlots.length}</p></div>
         </div>}
         <div className="space-y-5 p-4 sm:p-6">
-          {slots.length === 0 && <div className="rounded-2xl border border-dashed border-blue-200 bg-white p-8 text-center text-sm text-slate-600">{isStudent ? "Não há horários disponíveis nesta semana com os filtros selecionados." : "Nenhum horário nesta semana com os filtros selecionados."}</div>}
+          {activeSlots.length === 0 && <div className="rounded-2xl border border-dashed border-blue-200 bg-white p-8 text-center text-sm text-slate-600">{isStudent ? "Não há horários disponíveis nesta semana com os filtros selecionados." : "Nenhum horário nesta semana com os filtros selecionados."}</div>}
           {days.map((day) => {
             const key = dateKey(day);
-            const daySlots = slots.filter((slot) => dateKey(new Date(slot.starts_at)) === key);
+            const daySlots = activeSlots.filter((slot) => dateKey(new Date(slot.starts_at)) === key);
             if (!daySlots.length) return null;
             return <section key={key} className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-100 pb-2">
@@ -524,10 +569,11 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                   const teacher = Array.isArray(slot.teacher) ? slot.teacher[0] : slot.teacher;
                   const available = slot.status === "available";
                   const reserved = slot.status === "reserved" || slot.status === "booked";
+                  const awaitingOutcome = reserved && new Date(slot.starts_at) <= now;
                   const duration = Math.max(0, (new Date(slot.ends_at).getTime() - new Date(slot.starts_at).getTime()) / 60000);
                   return <article key={slot.id} className={`min-w-0 rounded-2xl border bg-white p-5 shadow-sm ${available ? "border-blue-200" : reserved ? "border-amber-200" : "border-slate-200"}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className={`rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide ${available ? "bg-blue-100 text-blue-800" : reserved ? "bg-amber-100 text-amber-900" : "bg-slate-100 text-slate-700"}`}>{statusLabel(slot.status)}</span>
+                      <span className={`rounded-full px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide ${available ? "bg-blue-100 text-blue-800" : reserved ? "bg-amber-100 text-amber-900" : "bg-slate-100 text-slate-700"}`}>{awaitingOutcome ? "Aguardando registro" : statusLabel(slot.status)}</span>
                       <span className="text-xs font-semibold text-slate-500">{duration} min</span>
                     </div>
                     <p className="mt-4 text-2xl font-extrabold tracking-tight text-[#173B73]">{timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}</p>
@@ -550,9 +596,47 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         </div>
       </section>
 
+      {(isTeacher || isAdmin) && (
+        <section className="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-5 sm:px-6">
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-slate-400">Histórico</p>
+              <h2 className="mt-1 text-xl font-extrabold text-[#173B73]">Aulas realizadas, canceladas e remarcadas</h2>
+              <p className="mt-1 text-sm text-slate-500">Cancelamentos e remarcações liberam novamente o horário antigo enquanto ainda estiver dentro da janela de reserva. Depois do limite, horários livres aparecem como “Não reservado”.</p>
+            </div>
+            <Link href="/aulas/minhas" className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700">Ver histórico completo →</Link>
+          </div>
+          <div className="grid gap-3 p-4 sm:p-6 lg:grid-cols-2">
+            {unfilledSlots.map((slot) => (
+              <article key={`unfilled-${slot.id}`} className="rounded-2xl border border-slate-200 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div><p className="font-extrabold text-[#173B73]">{[slot.grade_level, slot.subject].filter(Boolean).join(" · ")}</p><p className="mt-1 text-sm text-slate-500">Horário oferecido na agenda</p></div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-extrabold uppercase text-slate-700">Não reservado</span>
+                </div>
+                <p className="mt-3 text-sm font-semibold text-slate-700">{fullDateLabel.format(new Date(slot.starts_at))} · {timeLabel.format(new Date(slot.starts_at))} – {timeLabel.format(new Date(slot.ends_at))}</p>
+              </article>
+            ))}
+            {lessonHistory.map((event) => {
+              const labels: Record<string, string> = { completed: "Realizada", cancelled: "Cancelada", rescheduled: "Remarcada", no_show: "Aluno ausente", teacher_no_show: "Professor ausente" };
+              const classes: Record<string, string> = { completed: "bg-emerald-50 text-emerald-800", cancelled: "bg-rose-50 text-rose-800", rescheduled: "bg-indigo-50 text-indigo-800", no_show: "bg-amber-50 text-amber-800", teacher_no_show: "bg-orange-50 text-orange-800" };
+              return <article key={event.id} className="rounded-2xl border border-slate-200 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div><p className="font-extrabold text-[#173B73]">{[event.grade_level, event.subject].filter(Boolean).join(" · ")}</p><p className="mt-1 text-sm text-slate-500">Aluno: {event.student_name}</p></div>
+                  <span className={`rounded-full px-3 py-1 text-[11px] font-extrabold uppercase ${classes[event.event_type] || "bg-slate-100 text-slate-700"}`}>{labels[event.event_type] || event.event_type}</span>
+                </div>
+                <p className="mt-3 text-sm font-semibold text-slate-700">{fullDateLabel.format(new Date(event.starts_at))} · {timeLabel.format(new Date(event.starts_at))} – {timeLabel.format(new Date(event.ends_at))}</p>
+                {event.event_type === "rescheduled" && event.original_starts_at && <p className="mt-1 text-xs text-slate-500">Antes: {fullDateLabel.format(new Date(event.original_starts_at))} · {timeLabel.format(new Date(event.original_starts_at))}</p>}
+                {event.outcome_notes && <p className="mt-2 text-xs text-slate-500">{event.outcome_notes}</p>}
+              </article>;
+            })}
+            {!lessonHistory.length && !unfilledSlots.length && <div className="lg:col-span-2 rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">Ainda não há eventos no histórico. Os próximos resultados, cancelamentos, remarcações e horários não reservados serão registrados aqui.</div>}
+          </div>
+        </section>
+      )}
+
       <div className="mt-4"><Link href="/aulas/minhas" className="inline-block rounded-xl bg-blue-800 px-5 py-3 text-sm font-bold text-white">Ver aulas agendadas e realizadas →</Link></div>
       <section className="premium-metric-grid mt-5">
-        <article className="premium-metric"><div className="premium-metric-icon">▣</div><div><strong>{slots.length}</strong><span>Horários na semana</span></div><small>Agenda atual</small></article>
+        <article className="premium-metric"><div className="premium-metric-icon">▣</div><div><strong>{activeSlots.length}</strong><span>Horários na semana</span></div><small>Agenda atual</small></article>
         <article className="premium-metric"><div className="premium-metric-icon">♙</div><div><strong>{weeklyTeacherCount}</strong><span>Professores envolvidos</span></div><small>Semana selecionada</small></article>
         <article className="premium-metric"><div className="premium-metric-icon">✓</div><div><strong>{availableCount}</strong><span>Horários disponíveis</span></div><small>Prontos para reserva</small></article>
         <article className="premium-metric"><div className="premium-metric-icon">◷</div><div><strong>{weeklyHours.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}h</strong><span>Total de horas</span></div><small>Carga da semana</small></article>

@@ -1,11 +1,13 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import PendingSubmitButton from "@/components/pending-submit-button";
 
 const statusNames: Record<string, string> = {
   scheduled: "Agendada",
   completed: "Realizada",
-  no_show: "Ausência",
+  no_show: "Aluno ausente",
+  teacher_no_show: "Professor ausente",
   cancelled: "Cancelada",
 };
 
@@ -13,6 +15,7 @@ const statusClasses: Record<string, string> = {
   scheduled: "bg-blue-50 text-blue-700 border-blue-100",
   completed: "bg-emerald-50 text-emerald-700 border-emerald-100",
   no_show: "bg-amber-50 text-amber-800 border-amber-100",
+  teacher_no_show: "bg-rose-50 text-rose-800 border-rose-100",
   cancelled: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
@@ -260,13 +263,13 @@ export default async function AdminAulas({ searchParams }: { searchParams: Promi
                           <input type="hidden" name="booking_id" value={b.id}/>
                           <label className="block text-xs font-semibold text-slate-600">Plataforma<input name="meeting_provider" defaultValue={b.meeting_provider || "Google Meet"} maxLength={80} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"/></label>
                           <label className="block text-xs font-semibold text-slate-600">Link da aula<input name="meeting_url" type="url" defaultValue={b.meeting_url || ""} placeholder="https://meet.google.com/..." className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"/></label>
-                          <button className="w-full rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white">Salvar link online</button>
+                          <PendingSubmitButton pendingLabel="Salvando..." className="w-full rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white">Salvar link online</PendingSubmitButton>
                         </form>
                         {pendingRequest && <div className="space-y-2 border-t border-amber-200 bg-amber-50 p-3">
                           <p className="text-xs font-bold text-amber-900">Solicitação pendente do aluno</p>
                           <p className="text-xs text-amber-900">{pendingRequest.request_type === "reschedule" ? `Remarcação para ${dateTime.format(new Date(pendingRequest.requested_starts_at))}` : "Cancelamento da aula"}</p>
                           {pendingRequest.reason && <p className="text-xs text-amber-800">Motivo: {pendingRequest.reason}</p>}
-                          <form action={reviewRequest} className="space-y-2"><input type="hidden" name="request_id" value={pendingRequest.id}/><input name="review_note" maxLength={500} placeholder="Observação da análise (opcional)" className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs"/><div className="grid grid-cols-2 gap-2"><button name="decision" value="approved" className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white">Aprovar</button><button name="decision" value="rejected" className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700">Não aprovar</button></div></form>
+                          <form action={reviewRequest} className="space-y-2"><input type="hidden" name="request_id" value={pendingRequest.id}/><input name="review_note" maxLength={500} placeholder="Observação da análise (opcional)" className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs"/><div className="grid grid-cols-2 gap-2"><PendingSubmitButton name="decision" value="approved" pendingLabel="Aprovando..." className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white">Aprovar</PendingSubmitButton><PendingSubmitButton name="decision" value="rejected" pendingLabel="Registrando..." className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700">Não aprovar</PendingSubmitButton></div></form>
                         </div>}
                         {b.status === "scheduled" && !canFinish && <div className="space-y-3 border-t border-slate-200 pt-3">
                           <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Alterações da aula</p>
@@ -274,15 +277,15 @@ export default async function AdminAulas({ searchParams }: { searchParams: Promi
                           <form action={rescheduleLesson} className="space-y-2">
                             <input type="hidden" name="booking_id" value={b.id}/>
                             <div className="grid grid-cols-2 gap-2"><input type="date" name="new_date" required className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"/><input type="time" name="new_time" required className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"/></div>
-                            <button className="w-full rounded-lg bg-indigo-700 px-3 py-2 text-xs font-bold text-white">Remarcar aula</button>
+                            <PendingSubmitButton pendingLabel="Remarcando..." className="w-full rounded-lg bg-indigo-700 px-3 py-2 text-xs font-bold text-white">Remarcar aula</PendingSubmitButton>
                           </form>
                           <form action={cancelLesson} className="space-y-2">
                             <input type="hidden" name="booking_id" value={b.id}/>
                             <input name="cancel_reason" maxLength={500} placeholder="Motivo do cancelamento (opcional)" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"/>
-                            <button className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700">Cancelar aula</button>
+                            <PendingSubmitButton pendingLabel="Cancelando..." className="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700">Cancelar aula</PendingSubmitButton>
                           </form>
                         </div>}
-                        {canFinish && <form action={finishLesson} className="space-y-2 border-t border-slate-200 pt-3"><input type="hidden" name="booking_id" value={b.id}/><textarea name="notes" maxLength={1000} placeholder="Observações opcionais" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"/><div className="grid grid-cols-2 gap-2"><button name="status" value="completed" className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white">Realizada</button><button name="status" value="no_show" className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white">Ausência</button></div></form>}
+                        {canFinish && <form action={finishLesson} className="space-y-2 border-t border-slate-200 pt-3"><input type="hidden" name="booking_id" value={b.id}/><textarea name="notes" maxLength={1000} placeholder="Observações opcionais" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"/><div className="grid gap-2"><PendingSubmitButton name="status" value="completed" pendingLabel="Registrando..." className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white">Realizada</PendingSubmitButton><PendingSubmitButton name="status" value="no_show" pendingLabel="Registrando..." className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white">Aluno ausente</PendingSubmitButton><PendingSubmitButton name="status" value="teacher_no_show" pendingLabel="Registrando..." className="rounded-lg bg-rose-700 px-3 py-2 text-xs font-bold text-white">Professor ausente</PendingSubmitButton></div></form>}
                       </div>
                     </details>
                   </td>
