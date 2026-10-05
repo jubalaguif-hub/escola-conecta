@@ -25,7 +25,7 @@ async function finish(formData: FormData) {
   const notes = String(formData.get("notes") || "");
   const { error } = await supabase.rpc("finish_escola_lesson", {p_booking_id:id,p_status:status,p_notes:notes});
   if (error) redirect(`/aulas/minhas?error=${encodeURIComponent(error.message)}`);
-  revalidatePath("/aulas/minhas"); revalidatePath("/admin/aulas");
+  revalidatePath("/aulas/minhas"); revalidatePath("/admin/aulas"); revalidatePath("/admin/presencas"); revalidatePath("/professor/presencas");
   try { await processLessonNotifications(6); } catch(e) { console.error("Notificações pendentes",e); }
   redirect("/aulas/minhas?updated=1");
 }

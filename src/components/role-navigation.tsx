@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-type IconName = "home" | "video" | "calendar" | "plus" | "book";
+type IconName = "home" | "video" | "calendar" | "plus" | "book" | "check" | "money";
 
 type NavItem = { label: string; icon: IconName; href: string };
 
@@ -15,6 +15,8 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     calendar: <><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4m8-4v4M3 10h18"/></>,
     plus: <path d="M12 5v14M5 12h14"/>,
     book: <><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5v-16Z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5A2.5 2.5 0 0 1 20 21.5v-16Z"/></>,
+    check: <><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></>,
+    money: <><circle cx="12" cy="12" r="9"/><path d="M16 8.5c-.8-.7-2-1-3.3-1-1.8 0-3.2.8-3.2 2.1 0 1.2 1 1.8 3.1 2.2 2.1.4 3.2 1 3.2 2.3 0 1.4-1.4 2.4-3.4 2.4-1.5 0-2.9-.5-3.9-1.4M12 5.5v13"/></>,
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
@@ -25,12 +27,17 @@ export default function RoleNavigation({ role }: { role: string }) {
     ? [
         { label: "Visão geral", icon: "home", href: "/dashboard" },
         { label: "Minhas aulas", icon: "video", href: "/aulas/minhas" },
+        { label: "Pagamentos", icon: "money", href: "/aulas/pagamentos" },
         { label: "Reservar aula", icon: "plus", href: "/agenda" },
       ]
     : [
         { label: "Visão geral", icon: "home", href: "/dashboard" },
         { label: "Minhas aulas", icon: "video", href: "/aulas/minhas" },
-        ...(role === "teacher" ? [{ label: "Meu ensino", icon: "book" as IconName, href: "/professor/ensino" }] : []),
+        ...(role === "teacher" ? [
+          { label: "Meu ensino", icon: "book" as IconName, href: "/professor/ensino" },
+          { label: "Minha presença", icon: "check" as IconName, href: "/professor/presencas" },
+          { label: "Meus recebimentos", icon: "money" as IconName, href: "/professor/recebimentos" },
+        ] : []),
         { label: "Minha agenda", icon: "calendar", href: "/agenda" },
       ];
 
